@@ -7,16 +7,11 @@ import Dashboard from './pages/Dashboard'
 import Expenses from './pages/Expenses'
 import Income from './pages/Income'
 import StressTest from './pages/StressTest'
+import Postpone from './pages/Postpone'
+import Calendar from './pages/Calendar'
+import Prompt from './pages/Prompt'
 import Settings from './pages/Settings'
 import Transactions from './pages/Transactions'
-
-// Placeholder pages — replaced in later build steps
-const Placeholder = ({ name }: { name: string }) => (
-  <div>
-    <h1 className="text-xl font-bold text-gray-100 mb-2">{name}</h1>
-    <p className="text-gray-500 text-sm">Coming in a later build step.</p>
-  </div>
-)
 
 function AppRoutes() {
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null)
@@ -49,9 +44,9 @@ function AppRoutes() {
         <Route path="/expenses"      element={<Expenses />} />
         <Route path="/income"        element={<Income />} />
         <Route path="/stress-test"   element={<StressTest />} />
-        <Route path="/postpone"      element={<Placeholder name="Postpone" />} />
-        <Route path="/calendar"      element={<Placeholder name="Calendar" />} />
-        <Route path="/prompt"        element={<Placeholder name="Prompt Generator" />} />
+        <Route path="/postpone"      element={<Postpone />} />
+        <Route path="/calendar"      element={<Calendar />} />
+        <Route path="/prompt"        element={<Prompt />} />
         <Route path="/settings"      element={<Settings />} />
       </Route>
 
