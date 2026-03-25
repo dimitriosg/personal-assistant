@@ -86,7 +86,7 @@ router.get('/:month', (req, res) => {
     events.push({
       day,
       type: 'transaction',
-      label: tx.payee || catName || tx.memo || (isInflow ? 'Inflow' : 'Expense'),
+      label: tx.payee || catName || tx.memo || (isInflow ? 'Income' : 'Transaction'),
       amount: tx.amount,
       color: isInflow ? 'green' : 'red',
     })

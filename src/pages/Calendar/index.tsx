@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from 'react'
 import { get } from '../../lib/api'
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR' }).format(Math.abs(n))
+const fmtSigned = (n: number) => {
+  const prefix = n < 0 ? '-' : '+'
+  return `${prefix}${new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR' }).format(Math.abs(n))}`
+}
 
 type EventType = 'income' | 'target' | 'transaction'
 
@@ -210,7 +212,7 @@ export default function Calendar() {
                       <div className={`text-sm font-medium tabular-nums ${
                         e.amount < 0 ? 'text-red-400' : 'text-green-400'
                       }`}>
-                        {e.amount < 0 ? '-' : '+'}{fmt(e.amount)}
+                        {fmtSigned(e.amount)}
                       </div>
                     </div>
                   ))}
