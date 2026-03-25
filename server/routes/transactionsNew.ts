@@ -87,8 +87,14 @@ router.post('/', (req, res) => {
   if (!date || String(date).trim() === '') {
     return res.status(400).json({ error: 'date is required' })
   }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date).trim())) {
+    return res.status(400).json({ error: 'date must be in YYYY-MM-DD format' })
+  }
   if (amount === undefined || amount === null) {
     return res.status(400).json({ error: 'amount is required' })
+  }
+  if (isNaN(Number(amount))) {
+    return res.status(400).json({ error: 'amount must be a number' })
   }
   if (Number(amount) === 0) {
     return res.status(400).json({ error: 'amount must not be 0' })
@@ -131,8 +137,14 @@ router.put('/:id', (req, res) => {
   if (!date || String(date).trim() === '') {
     return res.status(400).json({ error: 'date is required' })
   }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date).trim())) {
+    return res.status(400).json({ error: 'date must be in YYYY-MM-DD format' })
+  }
   if (amount === undefined || amount === null) {
     return res.status(400).json({ error: 'amount is required' })
+  }
+  if (isNaN(Number(amount))) {
+    return res.status(400).json({ error: 'amount must be a number' })
   }
 
   if (category_id != null) {

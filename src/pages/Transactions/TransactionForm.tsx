@@ -45,12 +45,20 @@ export default function TransactionForm({ transaction, groups, payees, onSave, o
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const amt = parseFloat(amount)
+    if (!date.trim()) {
+      setError('Date is required')
+      return
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date.trim())) {
+      setError('Date must be in YYYY-MM-DD format')
+      return
+    }
     if (isNaN(amt) || amt <= 0) {
       setError('Amount must be greater than 0')
       return
     }
-    if (!date.trim()) {
-      setError('Date is required')
+    if (amt > 999999999) {
+      setError('Amount is too large')
       return
     }
 

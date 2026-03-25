@@ -211,6 +211,7 @@ router.post('/assign', (req, res) => {
   if (!category_id) return res.status(400).json({ error: 'category_id is required' })
   if (!month || !/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ error: 'month must be YYYY-MM format' })
   if (assigned === undefined || assigned === null) return res.status(400).json({ error: 'assigned is required' })
+  if (isNaN(Number(assigned))) return res.status(400).json({ error: 'assigned must be a number' })
 
   if (!db.prepare('SELECT id FROM categories WHERE id = ?').get(category_id)) {
     return res.status(404).json({ error: 'Category not found' })
@@ -236,7 +237,7 @@ router.post('/move', (req, res) => {
   if (!from_category_id) return res.status(400).json({ error: 'from_category_id is required' })
   if (!to_category_id) return res.status(400).json({ error: 'to_category_id is required' })
   if (!month || !/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ error: 'month must be YYYY-MM format' })
-  if (amount === undefined || amount === null || amount <= 0) return res.status(400).json({ error: 'amount must be > 0' })
+  if (amount === undefined || amount === null || isNaN(Number(amount)) || amount <= 0) return res.status(400).json({ error: 'amount must be > 0' })
 
   if (!db.prepare('SELECT id FROM categories WHERE id = ?').get(from_category_id)) {
     return res.status(404).json({ error: 'Source category not found' })

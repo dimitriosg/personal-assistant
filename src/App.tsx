@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Setup from './pages/setup'
 import Layout from './components/Layout'
+import ErrorBoundary from './components/ErrorBoundary'
 import Budget from './pages/Budget'
 import Dashboard from './pages/Dashboard'
 import Expenses from './pages/Expenses'
@@ -38,16 +39,16 @@ function AppRoutes() {
 
       {/* Authenticated pages — all blocked until onboarding is complete */}
       <Route element={onboardingComplete ? <Layout /> : <Navigate to="/setup" replace />}>
-        <Route path="/"              element={<Budget />} />
-        <Route path="/dashboard"     element={<Dashboard />} />
-        <Route path="/transactions"  element={<Transactions />} />
-        <Route path="/expenses"      element={<Expenses />} />
-        <Route path="/income"        element={<Income />} />
-        <Route path="/stress-test"   element={<StressTest />} />
-        <Route path="/postpone"      element={<Postpone />} />
-        <Route path="/calendar"      element={<Calendar />} />
-        <Route path="/prompt"        element={<Prompt />} />
-        <Route path="/settings"      element={<Settings />} />
+        <Route path="/"              element={<ErrorBoundary><Budget /></ErrorBoundary>} />
+        <Route path="/dashboard"     element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
+        <Route path="/transactions"  element={<ErrorBoundary><Transactions /></ErrorBoundary>} />
+        <Route path="/expenses"      element={<ErrorBoundary><Expenses /></ErrorBoundary>} />
+        <Route path="/income"        element={<ErrorBoundary><Income /></ErrorBoundary>} />
+        <Route path="/stress-test"   element={<ErrorBoundary><StressTest /></ErrorBoundary>} />
+        <Route path="/postpone"      element={<ErrorBoundary><Postpone /></ErrorBoundary>} />
+        <Route path="/calendar"      element={<ErrorBoundary><Calendar /></ErrorBoundary>} />
+        <Route path="/prompt"        element={<ErrorBoundary><Prompt /></ErrorBoundary>} />
+        <Route path="/settings"      element={<ErrorBoundary><Settings /></ErrorBoundary>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
