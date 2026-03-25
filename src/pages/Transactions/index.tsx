@@ -93,13 +93,13 @@ export default function Transactions() {
         setGroups(cats)
         setPayees(pays)
       } catch {
-        // Categories/payees are nice-to-have, don't block
+        // Categories/payees are nice-to-have; failure doesn't block page load
       }
       await fetchTransactions()
       setLoading(false)
     }
     loadAll()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchTransactions])
 
   useEffect(() => {
     fetchTransactions()
@@ -172,7 +172,7 @@ export default function Transactions() {
     setEditingTx(null)
     await fetchTransactions()
     // Refresh payees
-    try { setPayees(await get<string[]>('/transactions/payees')) } catch { /* ignore */ }
+    try { setPayees(await get<string[]>('/transactions/payees')) } catch { /* payee refresh is best-effort */ }
   }
 
   async function handleDelete(id: number) {
@@ -229,7 +229,7 @@ export default function Transactions() {
       await put(`/transactions/${tx.id}`, updated)
       await fetchTransactions()
       if (inlineField === 'payee') {
-        try { setPayees(await get<string[]>('/transactions/payees')) } catch { /* ignore */ }
+        try { setPayees(await get<string[]>('/transactions/payees')) } catch { /* payee refresh is best-effort */ }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Inline edit failed')
@@ -368,8 +368,8 @@ export default function Transactions() {
               <Th field="payee" current={sortField} dir={sortDir} onSort={handleSort}>Payee</Th>
               <Th field="category" current={sortField} dir={sortDir} onSort={handleSort}>Category</Th>
               <Th field="memo" current={sortField} dir={sortDir} onSort={handleSort}>Memo</Th>
-              <ThR field="amount" current={sortField} dir={sortDir} onSort={handleSort} label="Outflow" filter="out" />
-              <ThR field="amount" current={sortField} dir={sortDir} onSort={handleSort} label="Inflow" filter="in" />
+              <ThR field="amount" current={sortField} dir={sortDir} onSort={handleSort} label="Outflow" />
+              <ThR field="amount" current={sortField} dir={sortDir} onSort={handleSort} label="Inflow" />
               <ThR field="runningBalance" current={sortField} dir={sortDir} onSort={handleSort} label="Balance" />
               <th className="px-2 py-2 text-right w-[60px]"></th>
             </tr>
@@ -571,7 +571,7 @@ function ThR({
   field, current, dir, onSort, label,
 }: {
   field: SortField; current: SortField; dir: SortDir
-  onSort: (f: SortField) => void; label: string; filter?: string
+  onSort: (f: SortField) => void; label: string
 }) {
   return (
     <th
