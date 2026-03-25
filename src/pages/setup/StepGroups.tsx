@@ -8,8 +8,8 @@ interface Props {
   categories: CategoryEntry[]
 }
 
-let nextId = 1000
-function genId() { return `tmp-g-${nextId++}` }
+let nextId = 0
+function genId() { return `new-grp-${++nextId}` }
 
 export default function StepGroups({ groups, categories, onChange }: Props) {
   const [newGroupName, setNewGroupName] = useState('')

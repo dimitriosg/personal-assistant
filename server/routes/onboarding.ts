@@ -585,7 +585,7 @@ router.post('/demo', (_req, res) => {
     addTx(`${monthPrefix}-15`, 'Café', 'Coffee & Drink', -72, 'Misc coffees')
     addTx(`${monthPrefix}-08`, 'Wolt', 'Food Delivery', -16.45, 'Wolt order')
     addTx(`${monthPrefix}-11`, 'Wolt', 'Food Delivery', -22.55, 'Wolt order')
-    addTx(`${monthPrefix}-14`, 'efood', 'Food Delivery', -18, 'eFoodorder')
+    addTx(`${monthPrefix}-14`, 'efood', 'Food Delivery', -18, 'eFood order')
     addTx(`${monthPrefix}-17`, 'Wolt', 'Food Delivery', -54, 'Wolt orders')
     addTx(`${monthPrefix}-09`, 'Fun stuff', 'Fun Money', -47, 'Fun spending')
     addTx(`${monthPrefix}-12`, 'Nail salon', 'Face & Body', -25, 'Facial')

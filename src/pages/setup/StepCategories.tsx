@@ -8,8 +8,8 @@ interface Props {
   onChange: (categories: CategoryEntry[]) => void
 }
 
-let nextId = 2000
-function genId() { return `tmp-c-${nextId++}` }
+let nextId = 0
+function genId() { return `new-cat-${++nextId}` }
 
 export default function StepCategories({ groups, categories, shareExpenses, onChange }: Props) {
   const enabledGroups = groups.filter(g => g.enabled)

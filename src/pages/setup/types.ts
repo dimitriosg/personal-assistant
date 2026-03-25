@@ -103,9 +103,6 @@ export interface WizardData {
 
 // ── Default groups and categories ─────────────────────────────────────────────
 
-let nextId = 1
-function genId() { return `tmp-${nextId++}` }
-
 export interface DefaultGroupDef {
   name: string
   categories: Array<{ name: string; isShared: boolean }>
@@ -218,8 +215,8 @@ export const DEFAULT_GROUP_DEFS: DefaultGroupDef[] = [
 ]
 
 export function buildDefaultGroups(): GroupEntry[] {
-  return DEFAULT_GROUP_DEFS.map(g => ({
-    id: genId(),
+  return DEFAULT_GROUP_DEFS.map((g, i) => ({
+    id: `grp-${i}`,
     name: g.name,
     enabled: true,
   }))
@@ -227,12 +224,13 @@ export function buildDefaultGroups(): GroupEntry[] {
 
 export function buildDefaultCategories(groups: GroupEntry[]): CategoryEntry[] {
   const cats: CategoryEntry[] = []
+  let catIdx = 0
   for (let i = 0; i < groups.length; i++) {
     const groupDef = DEFAULT_GROUP_DEFS.find(d => d.name === groups[i].name)
     if (!groupDef) continue
     for (const c of groupDef.categories) {
       cats.push({
-        id: genId(),
+        id: `cat-${catIdx++}`,
         groupId: groups[i].id,
         name: c.name,
         enabled: true,
