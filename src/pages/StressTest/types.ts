@@ -11,18 +11,27 @@ export interface StressTestResult {
   verdict: Verdict
   reason: string
   date: string
+  category_id: number | null
+  budgetCategoryName?: string | null
   // expanded fields
   rule?: number
   why?: string
   risk?: string
   nextMove?: string
   context?: {
-    remaining: number
-    savingsTarget: number
-    remainingAfterPurchase: number
-    upcoming30Count: number
+    categoryAvailable: number
+    categoryName: string
+    readyToAssign: number
+    afterPurchase: number
+    sameGroupTargets: number
     bonusNextMonth: { name: string; amount: number; label: string } | null
   }
+}
+
+export interface CategoryGroup {
+  id: number
+  name: string
+  categories: Array<{ id: number; name: string }>
 }
 
 export const CATEGORY_LABELS: Record<Category, string> = {

@@ -21,11 +21,12 @@ export default function VerdictCard({ result }: { result: StressTestResult }) {
       {/* Context bar */}
       {result.context && (
         <div className="flex flex-wrap gap-4 text-xs text-gray-500 border-t border-gray-800 pt-3">
-          <span>Remaining: <span className="text-gray-300">{fmt(result.context.remaining)}</span></span>
-          <span>After purchase: <span className="text-gray-300">{fmt(result.context.remainingAfterPurchase)}</span></span>
-          <span>Safety target: <span className="text-gray-300">{fmt(result.context.savingsTarget)}</span></span>
-          {result.context.upcoming30Count > 0 && (
-            <span>Upcoming bills (30d): <span className="text-amber-400">{result.context.upcoming30Count}</span></span>
+          <span>Category: <span className="text-gray-300">{result.context.categoryName}</span></span>
+          <span>Available: <span className="text-gray-300">{fmt(result.context.categoryAvailable)}</span></span>
+          <span>After purchase: <span className="text-gray-300">{fmt(result.context.afterPurchase)}</span></span>
+          <span>Ready to Assign: <span className="text-gray-300">{fmt(result.context.readyToAssign)}</span></span>
+          {result.context.sameGroupTargets > 0 && (
+            <span>Targets in group (30d): <span className="text-amber-400">{result.context.sameGroupTargets}</span></span>
           )}
           {result.context.bonusNextMonth && (
             <span>Bonus next month: <span className="text-amber-400">{result.context.bonusNextMonth.label} {fmt(result.context.bonusNextMonth.amount)}</span></span>
