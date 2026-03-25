@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, memo } from 'react'
 import type { BudgetCategory } from './types'
 import AmountCell from './AmountCell'
 import StatusBadge, { deriveStatus } from '../../components/StatusBadge'
@@ -10,7 +10,7 @@ interface Props {
   onAssign: (categoryId: number, month: string, assigned: number) => void
 }
 
-export default function CategoryRow({ category, month, onAssign }: Props) {
+export default memo(function CategoryRow({ category, month, onAssign }: Props) {
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -120,4 +120,4 @@ export default function CategoryRow({ category, month, onAssign }: Props) {
       </div>
     </div>
   )
-}
+})

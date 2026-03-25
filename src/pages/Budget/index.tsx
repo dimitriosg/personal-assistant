@@ -44,14 +44,14 @@ export default function Budget() {
     setMonth(m)
   }
 
-  async function handleAssign(categoryId: number, m: string, assigned: number) {
+  const handleAssign = useCallback(async (categoryId: number, m: string, assigned: number) => {
     try {
       await post('/budget/assign', { category_id: categoryId, month: m, assigned })
       await fetchData(m)
     } catch (err) {
       console.error('Failed to assign:', err)
     }
-  }
+  }, [fetchData])
 
   async function handleMoveComplete() {
     setShowMoveModal(false)
