@@ -7,6 +7,11 @@ import dashboardRouter from './routes/dashboard'
 import expensesRouter from './routes/expenses'
 import incomeRouter from './routes/income'
 import stressTestRouter from './routes/stressTest'
+import groupsRouter from './routes/groups'
+import categoriesRouter from './routes/categories'
+import budgetRouter from './routes/budget'
+import transactionsNewRouter from './routes/transactionsNew'
+import summaryRouter from './routes/summary'
 
 const app = express()
 const PORT = 3001
@@ -21,6 +26,11 @@ app.use('/api/dashboard', dashboardRouter)
 app.use('/api/expenses', expensesRouter)
 app.use('/api/income', incomeRouter)
 app.use('/api/stress-test', stressTestRouter)
+app.use('/api/groups', groupsRouter)
+app.use('/api/categories', categoriesRouter)
+app.use('/api/budget', budgetRouter)
+app.use('/api/transactions', transactionsNewRouter)
+app.use('/api/summary', summaryRouter)
 
 // Health check
 app.get('/api/health', (_req, res) => {

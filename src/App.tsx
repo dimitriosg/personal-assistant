@@ -41,14 +41,15 @@ function AppRoutes() {
 
       {/* Authenticated pages — all blocked until onboarding is complete */}
       <Route element={onboardingComplete ? <Layout /> : <Navigate to="/setup" replace />}>
-        <Route path="/"            element={<Dashboard />} />
-        <Route path="/expenses"    element={<Expenses />} />
-        <Route path="/income"      element={<Income />} />
-        <Route path="/stress-test" element={<StressTest />} />
-        <Route path="/postpone"    element={<Placeholder name="Postpone" />} />
-        <Route path="/calendar"    element={<Placeholder name="Calendar" />} />
-        <Route path="/prompt"      element={<Placeholder name="Prompt Generator" />} />
-        <Route path="/settings"    element={<Settings />} />
+        <Route path="/"              element={<Dashboard />} />
+        <Route path="/transactions"  element={<Placeholder name="Transactions" />} />
+        <Route path="/expenses"      element={<Expenses />} />
+        <Route path="/income"        element={<Income />} />
+        <Route path="/stress-test"   element={<StressTest />} />
+        <Route path="/postpone"      element={<Placeholder name="Postpone" />} />
+        <Route path="/calendar"      element={<Placeholder name="Calendar" />} />
+        <Route path="/prompt"        element={<Placeholder name="Prompt Generator" />} />
+        <Route path="/settings"      element={<Settings />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

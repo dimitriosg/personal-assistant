@@ -1,4 +1,4 @@
-import { MONTHS, getSplitDecimal, type WizardData } from './types'
+import { getSplitDecimal, type WizardData } from './types'
 
 interface Props {
   data: WizardData
@@ -40,9 +40,17 @@ function Row({ label, value }: { label: string; value: string }) {
   )
 }
 
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+
 export default function StepReview({ data, onEdit, submitError }: Props) {
-  const { basics, income, fixedExpenses, irregularExpenses } = data
+  const { basics, income, groups, categories } = data
   const splitPct = (getSplitDecimal(basics) * 100).toFixed(0)
+
+  const enabledGroups = groups.filter(g => g.enabled)
+  const enabledCats = categories.filter(c => c.enabled && enabledGroups.some(g => g.id === c.groupId))
 
   return (
     <div className="space-y-5">
@@ -82,33 +90,47 @@ export default function StepReview({ data, onEdit, submitError }: Props) {
         )}
       </Section>
 
-      {/* Fixed expenses */}
-      <Section title="Fixed expenses" step={3} onEdit={onEdit}>
-        {fixedExpenses.length === 0 ? (
-          <p className="text-xs text-gray-600">None added. You can add them from the Expenses page.</p>
+      {/* Category Groups */}
+      <Section title="Category Groups" step={3} onEdit={onEdit}>
+        {enabledGroups.length === 0 ? (
+          <p className="text-xs text-gray-600">No groups selected.</p>
         ) : (
-          fixedExpenses.map(e => (
-            <Row
-              key={e.id}
-              label={`${e.name} (${e.isShared ? 'shared' : 'personal'})`}
-              value={`€${e.amount.toFixed(2)} · ${e.recurrence}`}
-            />
-          ))
+          enabledGroups.map(g => {
+            const groupCats = enabledCats.filter(c => c.groupId === g.id)
+            return (
+              <Row
+                key={g.id}
+                label={g.name}
+                value={`${groupCats.length} categor${groupCats.length === 1 ? 'y' : 'ies'}`}
+              />
+            )
+          })
         )}
       </Section>
 
-      {/* Irregular expenses */}
-      <Section title="Irregular / upcoming" step={4} onEdit={onEdit}>
-        {irregularExpenses.length === 0 ? (
-          <p className="text-xs text-gray-600">None added.</p>
+      {/* Categories */}
+      <Section title="Categories" step={4} onEdit={onEdit}>
+        {enabledCats.length === 0 ? (
+          <p className="text-xs text-gray-600">No categories selected.</p>
         ) : (
-          irregularExpenses.map(e => (
-            <Row
-              key={e.id}
-              label={`${e.name} (${e.isShared ? 'shared' : 'personal'})`}
-              value={`€${e.amount.toFixed(2)} · ${MONTHS[e.expectedMonth - 1]}`}
-            />
-          ))
+          <div className="space-y-0.5 max-h-60 overflow-y-auto">
+            {enabledGroups.map(g => {
+              const groupCats = enabledCats.filter(c => c.groupId === g.id)
+              if (groupCats.length === 0) return null
+              return (
+                <div key={g.id}>
+                  <p className="text-xs text-indigo-400 font-medium mt-2 mb-1">{g.name}</p>
+                  {groupCats.map(c => (
+                    <Row
+                      key={c.id}
+                      label={`${c.name}${c.isShared ? ' (shared)' : ''}`}
+                      value={c.targetAmount ? `€${c.targetAmount.toFixed(2)}/mo` : '—'}
+                    />
+                  ))}
+                </div>
+              )
+            })}
+          </div>
         )}
       </Section>
 
