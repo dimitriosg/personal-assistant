@@ -8,6 +8,7 @@ import Expenses from './pages/Expenses'
 import Income from './pages/Income'
 import StressTest from './pages/StressTest'
 import Settings from './pages/Settings'
+import Transactions from './pages/Transactions'
 
 // Placeholder pages — replaced in later build steps
 const Placeholder = ({ name }: { name: string }) => (
@@ -44,7 +45,7 @@ function AppRoutes() {
       <Route element={onboardingComplete ? <Layout /> : <Navigate to="/setup" replace />}>
         <Route path="/"              element={<Budget />} />
         <Route path="/dashboard"     element={<Dashboard />} />
-        <Route path="/transactions"  element={<Placeholder name="Transactions" />} />
+        <Route path="/transactions"  element={<Transactions />} />
         <Route path="/expenses"      element={<Expenses />} />
         <Route path="/income"        element={<Income />} />
         <Route path="/stress-test"   element={<StressTest />} />

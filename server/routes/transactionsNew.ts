@@ -56,14 +56,26 @@ router.get('/', (req, res) => {
 
   const rows = db.prepare(sql).all(...params) as TransactionRow[]
 
-  // Calculate running balance
-  let runningBalance = 0
-  const withBalance = rows.map(r => {
-    runningBalance += r.amount
-    return { ...shape(r), runningBalance: +runningBalance.toFixed(2) }
+  // Calculate running balance: accumulate oldest→newest, display newest-first
+  const chronological = [...rows].reverse()
+  let balance = 0
+  const withBalance = chronological.map(r => {
+    balance += r.amount
+    return { ...shape(r), runningBalance: +balance.toFixed(2) }
   })
+  withBalance.reverse()
 
   res.json(withBalance)
+})
+
+// ── GET /api/transactions/payees ───────────────────────────────────────────────
+// Returns distinct payee names for autocomplete
+
+router.get('/payees', (_req, res) => {
+  const rows = db.prepare(
+    "SELECT DISTINCT payee FROM transactions WHERE payee IS NOT NULL AND payee != '' ORDER BY payee"
+  ).all() as { payee: string }[]
+  res.json(rows.map(r => r.payee))
 })
 
 // ── POST /api/transactions ────────────────────────────────────────────────────
