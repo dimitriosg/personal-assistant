@@ -58,7 +58,7 @@ export default function TransactionForm({ transaction, groups, payees, onSave, o
       return
     }
     if (amt > 999999999) {
-      setError('Amount is too large')
+      setError('Amount must not exceed 999,999,999')
       return
     }
 

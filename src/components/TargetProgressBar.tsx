@@ -35,7 +35,14 @@ export default function TargetProgressBar({ assigned, targetAmount, targetType, 
   return (
     <div className="flex items-center gap-2 mt-0.5">
       {/* Progress bar */}
-      <div className="flex-1 h-1 bg-gray-800 rounded-full overflow-hidden max-w-[80px]">
+      <div
+        className="flex-1 h-1 bg-gray-800 rounded-full overflow-hidden max-w-[80px]"
+        role="progressbar"
+        aria-valuenow={Math.round(pct)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`${typeLabel}: ${Math.round(pct)}% funded`}
+      >
         <div
           className={`h-full rounded-full transition-all ${barColor}`}
           style={{ width: `${pct}%` }}

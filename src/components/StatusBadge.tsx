@@ -48,7 +48,7 @@ export function deriveStatus(
   targetAmount: number | null,
 ): BadgeStatus {
   if (available < 0) return 'overspent'
-  if (targetAmount != null && assigned < targetAmount && available >= 0) return 'underfunded'
+  if (targetAmount != null && assigned < targetAmount) return 'underfunded'
   if (available > 0) return 'funded'
   if (available === 0 && activity < 0) return 'spent'
   return 'idle'
