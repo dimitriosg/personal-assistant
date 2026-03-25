@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Setup from './pages/setup'
 import Layout from './components/Layout'
+import Budget from './pages/Budget'
 import Dashboard from './pages/Dashboard'
 import Expenses from './pages/Expenses'
 import Income from './pages/Income'
@@ -41,7 +42,8 @@ function AppRoutes() {
 
       {/* Authenticated pages — all blocked until onboarding is complete */}
       <Route element={onboardingComplete ? <Layout /> : <Navigate to="/setup" replace />}>
-        <Route path="/"              element={<Dashboard />} />
+        <Route path="/"              element={<Budget />} />
+        <Route path="/dashboard"     element={<Dashboard />} />
         <Route path="/transactions"  element={<Placeholder name="Transactions" />} />
         <Route path="/expenses"      element={<Expenses />} />
         <Route path="/income"        element={<Income />} />
