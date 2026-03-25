@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 const NAV_ITEMS = [
@@ -11,12 +12,20 @@ const NAV_ITEMS = [
   { label: 'Settings',         path: '/settings',      end: false },
 ]
 
-// Bottom tabs shown on mobile (the 4 most-used pages)
+// Bottom tabs shown on mobile (the 5 most-used slots)
 const MOBILE_TABS = [
   { label: 'Budget',  path: '/',              end: true,  icon: HomeIcon },
   { label: 'Trans',   path: '/transactions',  end: false, icon: ListIcon },
   { label: 'Income',  path: '/income',        end: false, icon: CashIcon },
   { label: 'Settings',path: '/settings',      end: false, icon: GearIcon },
+]
+
+// Pages shown in the "More" popover on mobile
+const MORE_ITEMS = [
+  { label: 'Stress Test', path: '/stress-test' },
+  { label: 'Postpone',    path: '/postpone' },
+  { label: 'Calendar',    path: '/calendar' },
+  { label: 'Prompt',      path: '/prompt' },
 ]
 
 function linkClass({ isActive }: { isActive: boolean }) {
@@ -39,6 +48,10 @@ const FULL_BLEED_PAGES = ['/']
 export default function Layout() {
   const location = useLocation()
   const isFullBleed = FULL_BLEED_PAGES.includes(location.pathname)
+  const [moreOpen, setMoreOpen] = useState(false)
+
+  // Check if current path is one of the "More" menu items
+  const isMoreActive = MORE_ITEMS.some(item => location.pathname === item.path)
 
   return (
     <div className="flex h-screen bg-gray-950 overflow-hidden">
@@ -81,13 +94,50 @@ export default function Layout() {
 
         {/* Mobile bottom tab bar */}
         <nav className="md:hidden shrink-0 flex items-center justify-around px-2 py-2
-          bg-gray-900 border-t border-gray-800">
+          bg-gray-900 border-t border-gray-800 relative">
           {MOBILE_TABS.map(item => (
-            <NavLink key={item.path} to={item.path} end={item.end} className={tabClass}>
+            <NavLink key={item.path} to={item.path} end={item.end} className={tabClass}
+              onClick={() => setMoreOpen(false)}>
               <item.icon />
               <span className="text-xs">{item.label}</span>
             </NavLink>
           ))}
+
+          {/* More button */}
+          <button
+            onClick={() => setMoreOpen(o => !o)}
+            className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${
+              moreOpen || isMoreActive ? 'text-indigo-400' : 'text-gray-600'
+            }`}
+          >
+            <MoreIcon />
+            <span className="text-xs">More</span>
+          </button>
+
+          {/* More popover */}
+          {moreOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
+              <div className="absolute bottom-full right-2 mb-2 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[160px]">
+                {MORE_ITEMS.map(item => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setMoreOpen(false)}
+                    className={({ isActive }) =>
+                      `block px-4 py-2.5 text-sm transition-colors ${
+                        isActive
+                          ? 'bg-indigo-600/20 text-indigo-400 font-medium'
+                          : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+                      }`
+                    }
+                  >
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            </>
+          )}
         </nav>
       </div>
     </div>
@@ -128,6 +178,15 @@ function GearIcon() {
       <path strokeLinecap="round" strokeLinejoin="round"
         d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  )
+}
+
+function MoreIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+      <path strokeLinecap="round" strokeLinejoin="round"
+        d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
     </svg>
   )
 }

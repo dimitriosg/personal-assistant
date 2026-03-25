@@ -56,7 +56,7 @@ export default function CategoryRow({ category, month, onAssign }: Props) {
   )
 
   return (
-    <div className="group grid grid-cols-[1fr_100px_100px_100px] gap-1 items-center px-4 py-1.5
+    <div className="group grid grid-cols-[1fr_80px_80px_80px] sm:grid-cols-[1fr_100px_100px_100px] gap-1 items-center px-3 sm:px-4 py-1.5
       hover:bg-gray-800/40 transition-colors text-sm border-b border-gray-800/40 last:border-0">
 
       {/* Category name + badges + target progress */}

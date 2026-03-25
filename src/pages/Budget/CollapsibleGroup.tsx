@@ -17,7 +17,7 @@ export default function CollapsibleGroup({ group, month, onAssign }: Props) {
       {/* Group header */}
       <button
         onClick={() => setCollapsed(c => !c)}
-        className="w-full grid grid-cols-[1fr_100px_100px_100px] gap-1 items-center px-4 py-2
+        className="w-full grid grid-cols-[1fr_80px_80px_80px] sm:grid-cols-[1fr_100px_100px_100px] gap-1 items-center px-3 sm:px-4 py-2
           bg-gray-900/60 hover:bg-gray-800/60 transition-colors border-b border-gray-800
           text-left group"
       >
