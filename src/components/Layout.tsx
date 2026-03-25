@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 const NAV_ITEMS = [
   { label: 'Budget',           path: '/',              end: true },
@@ -33,15 +33,21 @@ function tabClass({ isActive }: { isActive: boolean }) {
   }`
 }
 
+// Pages that manage their own layout (no max-width container / padding)
+const FULL_BLEED_PAGES = ['/']
+
 export default function Layout() {
+  const location = useLocation()
+  const isFullBleed = FULL_BLEED_PAGES.includes(location.pathname)
+
   return (
     <div className="flex h-screen bg-gray-950 overflow-hidden">
 
-      {/* ── Sidebar (desktop) ── */}
-      <aside className="hidden md:flex flex-col w-52 shrink-0 bg-gray-900 border-r border-gray-800">
+      {/* ── Left sidebar (desktop) ── */}
+      <aside className="hidden md:flex flex-col w-[200px] shrink-0 bg-gray-900 border-r border-gray-800">
         <div className="px-4 py-5 border-b border-gray-800">
           <span className="text-sm font-semibold text-gray-100 tracking-tight">Personal Assistant</span>
-          <div className="text-xs text-gray-600 mt-0.5">Money module v1</div>
+          <div className="text-xs text-gray-600 mt-0.5">Money module v2</div>
         </div>
         <nav className="flex-1 p-3 overflow-y-auto">
           {NAV_ITEMS.map(item => (
@@ -60,12 +66,18 @@ export default function Layout() {
           <span className="text-sm font-semibold text-gray-100">Personal Assistant</span>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto px-4 py-6 pb-24 md:pb-8">
+        {/* Page content — full-bleed for budget page, contained for others */}
+        {isFullBleed ? (
+          <main className="flex-1 overflow-hidden">
             <Outlet />
-          </div>
-        </main>
+          </main>
+        ) : (
+          <main className="flex-1 overflow-y-auto">
+            <div className="max-w-4xl mx-auto px-4 py-6 pb-24 md:pb-8">
+              <Outlet />
+            </div>
+          </main>
+        )}
 
         {/* Mobile bottom tab bar */}
         <nav className="md:hidden shrink-0 flex items-center justify-around px-2 py-2
