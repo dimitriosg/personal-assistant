@@ -1,4 +1,4 @@
-const STEP_LABELS = ['Basics', 'Income', 'Fixed Expenses', 'Irregular', 'Review']
+const STEP_LABELS = ['Basics', 'Income', 'Groups', 'Categories', 'Review']
 
 interface Props {
   currentStep: number   // 1-based

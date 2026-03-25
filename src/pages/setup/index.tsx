@@ -5,19 +5,18 @@ import {
   DEFAULT_WIZARD_DATA,
   buildPayload,
   canProceed,
-  getSplitDecimal,
   type WizardData,
   type BasicsData,
   type IncomeData,
-  type FixedExpenseEntry,
-  type IrregularExpenseEntry,
+  type GroupEntry,
+  type CategoryEntry,
 } from './types'
 import ProgressBar from './ProgressBar'
 import WizardNavigation from './WizardNavigation'
 import StepBasics from './StepBasics'
 import StepIncome from './StepIncome'
-import StepFixedExpenses from './StepFixedExpenses'
-import StepIrregularExpenses from './StepIrregularExpenses'
+import StepGroups from './StepGroups'
+import StepCategories from './StepCategories'
 import StepReview from './StepReview'
 
 const TOTAL_STEPS = 5
@@ -58,7 +57,7 @@ function ChoiceScreen({ onChoice }: {
             <div>
               <p className="text-sm font-semibold text-indigo-300 group-hover:text-indigo-200">Start fresh</p>
               <p className="text-xs text-gray-500 mt-0.5">
-                Walk through a 5-step wizard to enter your salary, bonuses, and expenses.
+                Walk through a 5-step wizard to enter your salary, category groups, and categories.
                 Takes about 2 minutes.
               </p>
             </div>
@@ -79,8 +78,8 @@ function ChoiceScreen({ onChoice }: {
                 {loading === 'demo' ? 'Loading demo…' : 'Use demo data'}
               </p>
               <p className="text-xs text-gray-500 mt-0.5">
-                Populate with a realistic salary, bonuses, and expenses so you can explore
-                the app right away. Replace with your real data any time.
+                Populate with realistic budget data including category groups, targets,
+                and sample transactions so you can explore right away.
               </p>
             </div>
           </div>
@@ -100,7 +99,7 @@ function ChoiceScreen({ onChoice }: {
                 {loading === 'skip' ? 'Skipping…' : "I'll set it up later"}
               </p>
               <p className="text-xs text-gray-600 mt-0.5">
-                Start with an empty database. Add your income and expenses manually
+                Start with default category groups. Add your income and set budgets
                 through the management pages.
               </p>
             </div>
@@ -135,10 +134,12 @@ export default function Setup() {
 
   // ── Wizard updaters ─────────────────────────────────────────────────────────
 
-  const setBasics    = (basics: BasicsData)                       => setData(d => ({ ...d, basics }))
-  const setIncome    = (income: IncomeData)                       => setData(d => ({ ...d, income }))
-  const setFixed     = (fixedExpenses: FixedExpenseEntry[])       => setData(d => ({ ...d, fixedExpenses }))
-  const setIrregular = (irregularExpenses: IrregularExpenseEntry[]) => setData(d => ({ ...d, irregularExpenses }))
+  const setBasics = (basics: BasicsData) => setData(d => ({ ...d, basics }))
+  const setIncome = (income: IncomeData) => setData(d => ({ ...d, income }))
+  const setGroupsAndCategories = (groups: GroupEntry[], categories: CategoryEntry[]) =>
+    setData(d => ({ ...d, groups, categories }))
+  const setCategories = (categories: CategoryEntry[]) =>
+    setData(d => ({ ...d, categories }))
 
   // ── Wizard navigation ───────────────────────────────────────────────────────
 
@@ -152,8 +153,7 @@ export default function Setup() {
     if (step === 1) setMode('choice')
     else setMode(step - 1)
   }
-  const goEdit       = (targetStep: number) => setMode(targetStep)
-  const skipIrregular = () => { setIrregular([]); setMode(5) }
+  const goEdit = (targetStep: number) => setMode(targetStep)
 
   // ── Wizard submit ───────────────────────────────────────────────────────────
 
@@ -188,11 +188,11 @@ export default function Setup() {
             <ProgressBar currentStep={step} />
 
             <div className="min-h-[400px]">
-              {step === 1 && <StepBasics    data={data.basics}            onChange={setBasics} />}
-              {step === 2 && <StepIncome    data={data.income}            onChange={setIncome} />}
-              {step === 3 && <StepFixedExpenses data={data.fixedExpenses} globalSplitPercent={Math.round(getSplitDecimal(data.basics) * 100)} onChange={setFixed} />}
-              {step === 4 && <StepIrregularExpenses data={data.irregularExpenses} globalSplitPercent={Math.round(getSplitDecimal(data.basics) * 100)} onChange={setIrregular} />}
-              {step === 5 && <StepReview    data={data} onEdit={goEdit}   submitError={submitError} />}
+              {step === 1 && <StepBasics data={data.basics} onChange={setBasics} />}
+              {step === 2 && <StepIncome data={data.income} onChange={setIncome} />}
+              {step === 3 && <StepGroups groups={data.groups} categories={data.categories} onChange={setGroupsAndCategories} />}
+              {step === 4 && <StepCategories groups={data.groups} categories={data.categories} shareExpenses={data.basics.shareExpenses} onChange={setCategories} />}
+              {step === 5 && <StepReview data={data} onEdit={goEdit} submitError={submitError} />}
             </div>
 
             <WizardNavigation
@@ -202,7 +202,6 @@ export default function Setup() {
               isSubmitting={isSubmitting}
               onBack={goBack}
               onNext={goNext}
-              onSkip={step === 4 ? skipIrregular : undefined}
             />
           </>
         )}

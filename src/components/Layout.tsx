@@ -1,22 +1,22 @@
 import { NavLink, Outlet } from 'react-router-dom'
 
 const NAV_ITEMS = [
-  { label: 'Dashboard',       path: '/',            end: true },
-  { label: 'Expenses',        path: '/expenses',    end: false },
-  { label: 'Income',          path: '/income',      end: false },
-  { label: 'Stress Test',     path: '/stress-test', end: false },
-  { label: 'Postpone',        path: '/postpone',    end: false },
-  { label: 'Calendar',        path: '/calendar',    end: false },
-  { label: 'Prompt',          path: '/prompt',      end: false },
-  { label: 'Settings',        path: '/settings',    end: false },
+  { label: 'Budget',           path: '/',              end: true },
+  { label: 'Transactions',     path: '/transactions',  end: false },
+  { label: 'Income',           path: '/income',        end: false },
+  { label: 'Stress Test',      path: '/stress-test',   end: false },
+  { label: 'Postpone',         path: '/postpone',      end: false },
+  { label: 'Calendar',         path: '/calendar',      end: false },
+  { label: 'Prompt',           path: '/prompt',        end: false },
+  { label: 'Settings',         path: '/settings',      end: false },
 ]
 
 // Bottom tabs shown on mobile (the 4 most-used pages)
 const MOBILE_TABS = [
-  { label: 'Home',     path: '/',         end: true,  icon: HomeIcon },
-  { label: 'Expenses', path: '/expenses', end: false, icon: ListIcon },
-  { label: 'Income',   path: '/income',   end: false, icon: CashIcon },
-  { label: 'Settings', path: '/settings', end: false, icon: GearIcon },
+  { label: 'Budget',  path: '/',              end: true,  icon: HomeIcon },
+  { label: 'Trans',   path: '/transactions',  end: false, icon: ListIcon },
+  { label: 'Income',  path: '/income',        end: false, icon: CashIcon },
+  { label: 'Settings',path: '/settings',      end: false, icon: GearIcon },
 ]
 
 function linkClass({ isActive }: { isActive: boolean }) {

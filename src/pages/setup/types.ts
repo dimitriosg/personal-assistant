@@ -47,28 +47,46 @@ export interface IncomeData {
   otherIncome: OtherIncomeEntry[]
 }
 
-// ── Step 3 ────────────────────────────────────────────────────────────────────
+// ── Step 3: Category Groups ───────────────────────────────────────────────────
+
+export interface GroupEntry {
+  id: string          // temp client id
+  name: string
+  enabled: boolean    // whether user wants this group
+}
+
+// ── Step 4: Categories ────────────────────────────────────────────────────────
+
+export interface CategoryEntry {
+  id: string          // temp client id
+  groupId: string     // references GroupEntry.id
+  name: string
+  enabled: boolean
+  isShared: boolean
+  customSplit: number | null   // 0–1 decimal override
+  targetAmount: number | null  // optional monthly target
+}
+
+// ── Legacy types (kept for backward compat) ───────────────────────────────────
 
 export interface FixedExpenseEntry {
   id: string
   name: string
   amount: number
   isShared: boolean
-  customSplit: number | null   // 0–1 decimal, null = use global
+  customSplit: number | null
   recurrence: Recurrence
   dueDay: number | null
   dueMonth: number | null
 }
 
-// ── Step 4 ────────────────────────────────────────────────────────────────────
-
 export interface IrregularExpenseEntry {
   id: string
   name: string
   amount: number
-  expectedMonth: number   // 1–12
+  expectedMonth: number
   isShared: boolean
-  customSplit: number | null   // 0–1 decimal, null = use global
+  customSplit: number | null
 }
 
 // ── Root ──────────────────────────────────────────────────────────────────────
@@ -76,9 +94,157 @@ export interface IrregularExpenseEntry {
 export interface WizardData {
   basics: BasicsData
   income: IncomeData
+  groups: GroupEntry[]
+  categories: CategoryEntry[]
+  // Legacy fields (unused by new flow but kept for type compat)
   fixedExpenses: FixedExpenseEntry[]
   irregularExpenses: IrregularExpenseEntry[]
 }
+
+// ── Default groups and categories ─────────────────────────────────────────────
+
+export interface DefaultGroupDef {
+  name: string
+  categories: Array<{ name: string; isShared: boolean }>
+}
+
+export const DEFAULT_GROUP_DEFS: DefaultGroupDef[] = [
+  {
+    name: 'Shared Expenses',
+    categories: [
+      { name: 'Rent', isShared: true },
+      { name: 'Electricity', isShared: true },
+      { name: 'Water', isShared: true },
+      { name: 'Internet + TV + Netflix', isShared: true },
+      { name: 'Groceries', isShared: true },
+      { name: 'Building Fees', isShared: true },
+      { name: 'House Cleaning', isShared: true },
+    ],
+  },
+  {
+    name: 'Debt',
+    categories: [
+      { name: 'Personal Loan', isShared: false },
+      { name: 'Car Installment', isShared: false },
+    ],
+  },
+  {
+    name: 'Immediate Obligations',
+    categories: [
+      { name: 'Vodafone Mobile', isShared: false },
+      { name: 'Cosmote Mobile', isShared: false },
+      { name: 'Interest & Fees', isShared: false },
+    ],
+  },
+  {
+    name: 'Car',
+    categories: [
+      { name: 'Gas', isShared: false },
+      { name: 'Car Expenses', isShared: false },
+      { name: 'KTEO', isShared: false },
+      { name: 'Car Insurance', isShared: false },
+      { name: 'Car Service', isShared: false },
+    ],
+  },
+  {
+    name: 'Subscriptions',
+    categories: [
+      { name: 'Revolut Metal', isShared: false },
+      { name: 'AI (GPT)', isShared: false },
+      { name: 'YouTube', isShared: false },
+      { name: 'Spotify', isShared: false },
+      { name: 'YNAB', isShared: false },
+    ],
+  },
+  {
+    name: 'Savings & Investment',
+    categories: [
+      { name: 'Savings', isShared: false },
+      { name: 'Emergency Fund', isShared: false },
+    ],
+  },
+  {
+    name: 'Goals',
+    categories: [
+      { name: 'PS5', isShared: false },
+      { name: 'Boat License', isShared: false },
+    ],
+  },
+  {
+    name: 'True Expenses',
+    categories: [
+      { name: 'Haircut', isShared: false },
+      { name: 'Home & Office', isShared: false },
+      { name: 'Medical', isShared: false },
+      { name: 'Nutritionist', isShared: false },
+      { name: 'Transportation', isShared: false },
+    ],
+  },
+  {
+    name: 'Just for Fun',
+    categories: [
+      { name: 'Coffee & Drink', isShared: false },
+      { name: 'Food Out', isShared: false },
+      { name: 'Drink Out', isShared: false },
+      { name: 'Food Delivery', isShared: false },
+      { name: 'Dining Out', isShared: false },
+      { name: 'Temu/Impulse', isShared: false },
+      { name: 'Fun Money', isShared: false },
+    ],
+  },
+  {
+    name: 'Personal Care',
+    categories: [
+      { name: 'Nails', isShared: false },
+      { name: 'Face & Body', isShared: false },
+    ],
+  },
+  {
+    name: 'Quality of Life',
+    categories: [
+      { name: 'Education', isShared: false },
+      { name: 'Vacation', isShared: false },
+    ],
+  },
+  {
+    name: 'Additional Expenses',
+    categories: [
+      { name: 'Other', isShared: false },
+    ],
+  },
+]
+
+export function buildDefaultGroups(): GroupEntry[] {
+  return DEFAULT_GROUP_DEFS.map((g, i) => ({
+    id: `grp-${i}`,
+    name: g.name,
+    enabled: true,
+  }))
+}
+
+export function buildDefaultCategories(groups: GroupEntry[]): CategoryEntry[] {
+  const cats: CategoryEntry[] = []
+  let catIdx = 0
+  for (let i = 0; i < groups.length; i++) {
+    const groupDef = DEFAULT_GROUP_DEFS.find(d => d.name === groups[i].name)
+    if (!groupDef) continue
+    for (const c of groupDef.categories) {
+      cats.push({
+        id: `cat-${catIdx++}`,
+        groupId: groups[i].id,
+        name: c.name,
+        enabled: true,
+        isShared: c.isShared,
+        customSplit: null,
+        targetAmount: null,
+      })
+    }
+  }
+  return cats
+}
+
+const defaultGroups = buildDefaultGroups()
+const defaultCategories = buildDefaultCategories(defaultGroups)
 
 export const DEFAULT_WIZARD_DATA: WizardData = {
   basics: {
@@ -94,6 +260,8 @@ export const DEFAULT_WIZARD_DATA: WizardData = {
     bonuses: [],
     otherIncome: [],
   },
+  groups: defaultGroups,
+  categories: defaultCategories,
   fixedExpenses: [],
   irregularExpenses: [],
 }
@@ -120,12 +288,20 @@ export interface OnboardingPayload {
     bonuses: Omit<BonusEntry, 'id'>[]
     otherIncome: Omit<OtherIncomeEntry, 'id'>[]
   }
-  fixedExpenses: Omit<FixedExpenseEntry, 'id'>[]
-  irregularExpenses: Omit<IrregularExpenseEntry, 'id'>[]
+  groups: Array<{
+    name: string
+    categories: Array<{
+      name: string
+      isShared: boolean
+      customSplit: number | null
+      targetAmount: number | null
+    }>
+  }>
 }
 
 
 export function buildPayload(data: WizardData): OnboardingPayload {
+  const enabledGroups = data.groups.filter(g => g.enabled)
   return {
     settings: {
       currency: data.basics.currency,
@@ -140,8 +316,17 @@ export function buildPayload(data: WizardData): OnboardingPayload {
         : [],
       otherIncome: data.income.otherIncome.map(({ id: _id, ...o }) => o),
     },
-    fixedExpenses: data.fixedExpenses.map(({ id: _id, ...e }) => e),
-    irregularExpenses: data.irregularExpenses.map(({ id: _id, ...e }) => e),
+    groups: enabledGroups.map(g => ({
+      name: g.name,
+      categories: data.categories
+        .filter(c => c.groupId === g.id && c.enabled)
+        .map(c => ({
+          name: c.name,
+          isShared: c.isShared,
+          customSplit: c.customSplit,
+          targetAmount: c.targetAmount,
+        })),
+    })),
   }
 }
 
@@ -156,9 +341,9 @@ export function canProceed(step: number, data: WizardData): boolean {
           (data.income.bonuses.length > 0 &&
             data.income.bonuses.every(b => b.name.trim() !== '' && b.amount > 0)))
     case 3:
-      return data.fixedExpenses.every(e => e.name.trim() !== '' && e.amount > 0)
+      return data.groups.some(g => g.enabled)
     case 4:
-      return data.irregularExpenses.every(e => e.name.trim() !== '' && e.amount > 0)
+      return data.categories.some(c => c.enabled)
     case 5:
       return true
     default:
