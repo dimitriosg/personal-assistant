@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
-import { post } from '../../lib/api'
+import { get, post } from '../../lib/api'
 import VerdictCard from './VerdictCard'
 import {
-  type StressTestResult, type Category, type Urgency, type Verdict,
+  type StressTestResult, type CategoryGroup, type Category, type Urgency, type Verdict,
   CATEGORY_LABELS, URGENCY_LABELS, VERDICT_STYLES,
 } from './types'
 
@@ -25,6 +25,9 @@ function HistoryRow({ r, onDelete }: { r: StressTestResult; onDelete: (id: numbe
           </span>
           <span className="text-xs text-gray-600">{CATEGORY_LABELS[r.category as Category] ?? r.category}</span>
           <span className="text-xs text-gray-600">{URGENCY_LABELS[r.urgency as Urgency] ?? r.urgency}</span>
+          {r.budgetCategoryName && (
+            <span className="text-xs text-indigo-400">📁 {r.budgetCategoryName}</span>
+          )}
         </div>
         {r.why && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{r.why}</p>}
       </div>
@@ -73,14 +76,16 @@ const CATEGORIES: Category[] = ['need', 'useful', 'comfort', 'impulse']
 const URGENCIES: Urgency[]   = ['high', 'medium', 'low']
 
 export default function StressTest() {
-  const [item,     setItem]     = useState('')
-  const [price,    setPrice]    = useState('')
-  const [category, setCategory] = useState<Category>('useful')
-  const [urgency,  setUrgency]  = useState<Urgency>('medium')
+  const [item,       setItem]       = useState('')
+  const [price,      setPrice]      = useState('')
+  const [category,   setCategory]   = useState<Category>('useful')
+  const [urgency,    setUrgency]    = useState<Urgency>('medium')
+  const [categoryId, setCategoryId] = useState<number | ''>('')
   const [submitting, setSubmitting] = useState(false)
-  const [error,    setError]    = useState<string | null>(null)
-  const [result,   setResult]   = useState<StressTestResult | null>(null)
-  const [history,  setHistory]  = useState<StressTestResult[]>([])
+  const [error,      setError]      = useState<string | null>(null)
+  const [result,     setResult]     = useState<StressTestResult | null>(null)
+  const [history,    setHistory]    = useState<StressTestResult[]>([])
+  const [groups,     setGroups]     = useState<CategoryGroup[]>([])
 
   const loadHistory = useCallback(() => {
     fetch('/api/stress-test')
@@ -89,12 +94,19 @@ export default function StressTest() {
       .catch(() => {})
   }, [])
 
-  useEffect(() => { loadHistory() }, [loadHistory])
+  const loadGroups = useCallback(() => {
+    get<CategoryGroup[]>('/categories')
+      .then(setGroups)
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => { loadHistory(); loadGroups() }, [loadHistory, loadGroups])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!item.trim()) { setError('Item name is required'); return }
     if (!price || parseFloat(price) <= 0) { setError('Price must be > 0'); return }
+    if (!categoryId) { setError('Select a budget category'); return }
     setError(null)
     setSubmitting(true)
     try {
@@ -103,6 +115,7 @@ export default function StressTest() {
         price: parseFloat(price),
         category,
         urgency,
+        category_id: categoryId,
       })
       setResult(data)
       loadHistory()
@@ -124,6 +137,7 @@ export default function StressTest() {
     setPrice('')
     setCategory('useful')
     setUrgency('medium')
+    setCategoryId('')
     setResult(null)
     setError(null)
   }
@@ -140,7 +154,7 @@ export default function StressTest() {
       <div>
         <h1 className="text-xl font-bold text-gray-100">Purchase Stress Test</h1>
         <p className="text-xs text-gray-500 mt-0.5">
-          Should you buy it? Get a data-driven verdict based on your actual finances.
+          Should you buy it? Tests against your actual category balances.
         </p>
       </div>
 
@@ -181,9 +195,31 @@ export default function StressTest() {
           </div>
         </div>
 
-        {/* Category */}
+        {/* Budget Category — which category would this come from? */}
         <div>
-          <label className="block text-xs text-gray-400 mb-2">Category</label>
+          <label className="block text-xs text-gray-400 mb-1.5">
+            Budget category <span className="text-red-400">*</span>
+          </label>
+          <select
+            value={categoryId}
+            onChange={e => setCategoryId(e.target.value ? Number(e.target.value) : '')}
+            className={inp}
+          >
+            <option value="">Select a category…</option>
+            {groups.map(g => (
+              <optgroup key={g.id} label={g.name}>
+                {g.categories.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          <p className="text-xs text-gray-700 mt-1">Which budget category would this purchase come from?</p>
+        </div>
+
+        {/* Category (purchase type) */}
+        <div>
+          <label className="block text-xs text-gray-400 mb-2">Purchase type</label>
           <ToggleGroup
             options={CATEGORIES}
             value={category}

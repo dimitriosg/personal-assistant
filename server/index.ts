@@ -12,6 +12,9 @@ import categoriesRouter from './routes/categories'
 import budgetRouter from './routes/budget'
 import transactionsNewRouter from './routes/transactionsNew'
 import summaryRouter from './routes/summary'
+import postponeRouter from './routes/postpone'
+import calendarRouter from './routes/calendar'
+import promptRouter from './routes/prompt'
 
 const app = express()
 const PORT = 3001
@@ -31,6 +34,9 @@ app.use('/api/categories', categoriesRouter)
 app.use('/api/budget', budgetRouter)
 app.use('/api/transactions', transactionsNewRouter)
 app.use('/api/summary', summaryRouter)
+app.use('/api/postpone', postponeRouter)
+app.use('/api/calendar', calendarRouter)
+app.use('/api/prompt', promptRouter)
 
 // Health check
 app.get('/api/health', (_req, res) => {
