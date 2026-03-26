@@ -152,10 +152,31 @@ db.exec(`
     ON ai_conversations(conversation_id)
 `)
 
+// ── Phase 8: budget_moves table + categories columns ─────────────────────────
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS budget_moves (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    month            TEXT NOT NULL,
+    from_category_id INTEGER,
+    to_category_id   INTEGER,
+    amount           REAL NOT NULL,
+    moved_at         TEXT NOT NULL DEFAULT (datetime('now')),
+    undone           INTEGER DEFAULT 0
+  )
+`)
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_budget_moves_month
+    ON budget_moves(month)
+`)
+
 // ── Legacy schema migrations (safe to run on existing DBs) ───────────────────
 try { db.exec("ALTER TABLE income ADD COLUMN due_day INTEGER") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE expenses ADD COLUMN custom_split REAL") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE stress_tests ADD COLUMN category_id INTEGER REFERENCES categories(id)") } catch { /* already exists */ }
+try { db.exec("ALTER TABLE categories ADD COLUMN emoji TEXT DEFAULT NULL") } catch { /* already exists */ }
+try { db.exec("ALTER TABLE categories ADD COLUMN snoozed INTEGER DEFAULT 0") } catch { /* already exists */ }
 
 // ── Default settings (INSERT OR IGNORE — never overwrite user data) ──────────
 db.exec(`
