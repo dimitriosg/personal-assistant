@@ -1,3 +1,13 @@
+// Load .env file if present (for OPENAI_API_KEY etc.) — uses Node built-in, no extra package needed
+try {
+  process.loadEnvFile()
+} catch (err: unknown) {
+  // ENOENT = no .env file, which is fine (AI features just won't have keys)
+  if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code !== 'ENOENT') {
+    console.warn('Warning: failed to load .env file:', err.message)
+  }
+}
+
 import express from 'express'
 import cors from 'cors'
 import './db' // initialise DB and run migrations on startup
@@ -15,6 +25,7 @@ import summaryRouter from './routes/summary'
 import postponeRouter from './routes/postpone'
 import calendarRouter from './routes/calendar'
 import promptRouter from './routes/prompt'
+import aiRouter from './routes/ai'
 
 const app = express()
 const PORT = 3001
@@ -37,6 +48,7 @@ app.use('/api/summary', summaryRouter)
 app.use('/api/postpone', postponeRouter)
 app.use('/api/calendar', calendarRouter)
 app.use('/api/prompt', promptRouter)
+app.use('/api/ai', aiRouter)
 
 // Health check
 app.get('/api/health', (_req, res) => {
