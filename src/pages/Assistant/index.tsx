@@ -175,6 +175,51 @@ export default function Assistant() {
   const hasMessages = messages.length > 0 || isStreaming
   const hasCompareContent = compareQuestion !== null
 
+  const renderQuickActions = () =>
+    showAffordForm ? (
+      <form onSubmit={handleAffordSubmit} className="flex flex-col gap-2 w-full max-w-sm">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-gray-400 font-medium">Can I afford…</span>
+          <button type="button" onClick={handleAffordDismiss} className="text-gray-500 hover:text-gray-300 text-sm leading-none">✕</button>
+        </div>
+        <input
+          type="text"
+          value={affordItem}
+          onChange={e => setAffordItem(e.target.value)}
+          placeholder="Item name"
+          autoFocus
+          className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        />
+        <input
+          type="number"
+          value={affordAmount}
+          onChange={e => setAffordAmount(e.target.value)}
+          placeholder="Amount (EUR)"
+          min="0"
+          step="0.01"
+          className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        />
+        <button
+          type="submit"
+          disabled={!affordItem.trim() || !affordAmount.trim()}
+          className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium transition-colors"
+        >
+          Ask →
+        </button>
+      </form>
+    ) : (
+      QUICK_ACTIONS.map(action => (
+        <button
+          key={action.label}
+          type="button"
+          onClick={() => handleQuickAction(action)}
+          className="text-xs px-3 py-1.5 rounded-full border border-gray-700 bg-gray-800/60 text-gray-400 hover:text-gray-200 hover:border-gray-600 transition-colors"
+        >
+          {action.label}
+        </button>
+      ))
+    )
+
   return (
     <div className="flex flex-col h-full">
       {/* ── Top bar ── */}
@@ -238,49 +283,7 @@ export default function Assistant() {
                     <p className="text-gray-500 text-sm">Ask a question to compare both models</p>
                   </div>
                   <div className="flex flex-wrap justify-center gap-2 max-w-lg">
-                    {showAffordForm ? (
-                      <form onSubmit={handleAffordSubmit} className="flex flex-col gap-2 w-full max-w-sm">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-400 font-medium">Can I afford…</span>
-                          <button type="button" onClick={handleAffordDismiss} className="text-gray-500 hover:text-gray-300 text-sm leading-none">✕</button>
-                        </div>
-                        <input
-                          type="text"
-                          value={affordItem}
-                          onChange={e => setAffordItem(e.target.value)}
-                          placeholder="Item name"
-                          autoFocus
-                          className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                        />
-                        <input
-                          type="number"
-                          value={affordAmount}
-                          onChange={e => setAffordAmount(e.target.value)}
-                          placeholder="Amount (EUR)"
-                          min="0"
-                          step="0.01"
-                          className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                        />
-                        <button
-                          type="submit"
-                          disabled={!affordItem.trim() || !affordAmount.trim()}
-                          className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium transition-colors"
-                        >
-                          Ask →
-                        </button>
-                      </form>
-                    ) : (
-                      QUICK_ACTIONS.map(action => (
-                        <button
-                          key={action.label}
-                          type="button"
-                          onClick={() => handleQuickAction(action)}
-                          className="text-xs px-3 py-1.5 rounded-full border border-gray-700 bg-gray-800/60 text-gray-400 hover:text-gray-200 hover:border-gray-600 transition-colors"
-                        >
-                          {action.label}
-                        </button>
-                      ))
-                    )}
+                    {renderQuickActions()}
                   </div>
                 </div>
               ) : (
@@ -311,49 +314,7 @@ export default function Assistant() {
 
                 {/* Quick action chips */}
                 <div className="flex flex-wrap justify-center gap-2 max-w-lg">
-                  {showAffordForm ? (
-                    <form onSubmit={handleAffordSubmit} className="flex flex-col gap-2 w-full max-w-sm">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-400 font-medium">Can I afford…</span>
-                        <button type="button" onClick={handleAffordDismiss} className="text-gray-500 hover:text-gray-300 text-sm leading-none">✕</button>
-                      </div>
-                      <input
-                        type="text"
-                        value={affordItem}
-                        onChange={e => setAffordItem(e.target.value)}
-                        placeholder="Item name"
-                        autoFocus
-                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      />
-                      <input
-                        type="number"
-                        value={affordAmount}
-                        onChange={e => setAffordAmount(e.target.value)}
-                        placeholder="Amount (EUR)"
-                        min="0"
-                        step="0.01"
-                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      />
-                      <button
-                        type="submit"
-                        disabled={!affordItem.trim() || !affordAmount.trim()}
-                        className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium transition-colors"
-                      >
-                        Ask →
-                      </button>
-                    </form>
-                  ) : (
-                    QUICK_ACTIONS.map(action => (
-                      <button
-                        key={action.label}
-                        type="button"
-                        onClick={() => handleQuickAction(action)}
-                        className="text-xs px-3 py-1.5 rounded-full border border-gray-700 bg-gray-800/60 text-gray-400 hover:text-gray-200 hover:border-gray-600 transition-colors"
-                      >
-                        {action.label}
-                      </button>
-                    ))
-                  )}
+                  {renderQuickActions()}
                 </div>
               </div>
             ) : (
