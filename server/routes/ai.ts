@@ -53,8 +53,8 @@ function saveMessage(
 ): void {
   try {
     insertMessage.run(conversationId, role, content, model, tokensUsed)
-  } catch {
-    // Non-critical — don't break the response if save fails
+  } catch (err) {
+    console.warn('Failed to save ai_conversation message:', err instanceof Error ? err.message : err)
   }
 }
 
