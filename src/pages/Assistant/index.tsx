@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { useAIStream } from '../../hooks/useAIStream'
+import ChatMessage from '../../components/assistant/ChatMessage'
 
 const QUICK_ACTIONS = [
   { label: 'Where am I overspending?', message: 'Where am I overspending this month? Show me the categories that are over budget and suggest how to fix them.' },
-  { label: 'Can I afford something?', message: null, promptUser: true },
+  { label: 'Can I afford something?', message: null as string | null, promptUser: true },
   { label: 'What should I postpone?', message: 'Based on my current budget, which categories or targets should I postpone this month to reduce financial stress?' },
   { label: 'Am I on track?', message: 'Give me a brief overall assessment of my budget this month. Am I on track, overspending, or doing well?' },
   { label: 'Review my subscriptions', message: 'List all my subscription categories, their assigned amounts, and flag any that I haven\'t actually spent money on this month.' },
@@ -13,10 +15,75 @@ const MODELS = [
   { value: 'haiku', label: 'Claude Haiku' },
 ] as const
 
+type ModelRole = 'gpt4o_mini' | 'haiku'
+
+interface Message {
+  role: 'user' | ModelRole
+  content: string
+}
+
 export default function Assistant() {
   const [model, setModel] = useState<string>('gpt4o_mini')
   const [compareMode, setCompareMode] = useState(false)
   const [input, setInput] = useState('')
+  const [messages, setMessages] = useState<Message[]>([])
+  const [conversationId] = useState(() => crypto.randomUUID())
+  const chatEndRef = useRef<HTMLDivElement>(null)
+
+  const { content: streamContent, isStreaming, error, send } = useAIStream('/api/ai/chat')
+
+  // Auto-scroll to bottom when new messages or streaming content arrive
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, streamContent])
+
+  // When streaming finishes, commit the streamed content as a message
+  const prevStreamingRef = useRef(false)
+  useEffect(() => {
+    if (prevStreamingRef.current && !isStreaming && streamContent) {
+      setMessages(prev => [...prev, { role: model as ModelRole, content: streamContent }])
+    }
+    prevStreamingRef.current = isStreaming
+  }, [isStreaming, streamContent, model])
+
+  const handleSend = useCallback((text: string) => {
+    if (!text.trim() || isStreaming) return
+
+    const userMessage: Message = { role: 'user', content: text.trim() }
+    setMessages(prev => [...prev, userMessage])
+    setInput('')
+
+    // Build history for multi-turn: convert our roles to the API's expected format
+    const history = messages.map(m => ({
+      role: m.role === 'user' ? 'user' as const : 'assistant' as const,
+      content: m.content,
+    }))
+
+    send({
+      model,
+      message: text.trim(),
+      conversationId,
+      history,
+    })
+  }, [isStreaming, messages, model, conversationId, send])
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    handleSend(input)
+  }
+
+  const handleQuickAction = (action: typeof QUICK_ACTIONS[number]) => {
+    if (!action.message) return // "Can I afford?" flow — Step 8
+    handleSend(action.message)
+  }
+
+  const handleNewConversation = () => {
+    // For now, just reload the page to get a fresh state
+    // ConversationHistory sidebar API calls are Step 10
+    window.location.reload()
+  }
+
+  const hasMessages = messages.length > 0 || isStreaming
 
   return (
     <div className="flex flex-col h-full">
@@ -28,6 +95,7 @@ export default function Assistant() {
             <select
               value={model}
               onChange={e => setModel(e.target.value)}
+              disabled={isStreaming}
               className="bg-gray-800 border border-gray-700 text-gray-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
               {MODELS.map(m => (
@@ -38,6 +106,7 @@ export default function Assistant() {
           <button
             type="button"
             onClick={() => setCompareMode(c => !c)}
+            disabled={isStreaming}
             className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
               compareMode
                 ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/40'
@@ -58,6 +127,7 @@ export default function Assistant() {
             <div className="p-3">
               <button
                 type="button"
+                onClick={handleNewConversation}
                 className="w-full text-xs font-medium px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
               >
                 + New Conversation
@@ -72,32 +142,59 @@ export default function Assistant() {
         {/* ── Main chat area ── */}
         <div className="flex flex-col flex-1 min-w-0">
 
-          {/* Chat messages (empty state with quick actions) */}
+          {/* Chat messages */}
           <div className="flex-1 overflow-y-auto px-4 py-6">
-            <div className="flex flex-col items-center justify-center h-full gap-6">
-              <div className="text-center">
-                <p className="text-gray-500 text-sm">Ask anything about your budget</p>
-              </div>
+            {!hasMessages ? (
+              /* Empty state with quick actions */
+              <div className="flex flex-col items-center justify-center h-full gap-6">
+                <div className="text-center">
+                  <p className="text-gray-500 text-sm">Ask anything about your budget</p>
+                </div>
 
-              {/* Quick action chips */}
-              <div className="flex flex-wrap justify-center gap-2 max-w-lg">
-                {QUICK_ACTIONS.map(action => (
-                  <button
-                    key={action.label}
-                    type="button"
-                    className="text-xs px-3 py-1.5 rounded-full border border-gray-700 bg-gray-800/60 text-gray-400 hover:text-gray-200 hover:border-gray-600 transition-colors"
-                  >
-                    {action.label}
-                  </button>
-                ))}
+                {/* Quick action chips */}
+                <div className="flex flex-wrap justify-center gap-2 max-w-lg">
+                  {QUICK_ACTIONS.map(action => (
+                    <button
+                      key={action.label}
+                      type="button"
+                      onClick={() => handleQuickAction(action)}
+                      className="text-xs px-3 py-1.5 rounded-full border border-gray-700 bg-gray-800/60 text-gray-400 hover:text-gray-200 hover:border-gray-600 transition-colors"
+                    >
+                      {action.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              /* Messages list */
+              <div className="flex flex-col gap-4 max-w-3xl mx-auto">
+                {messages.map((msg, i) => (
+                  <ChatMessage key={i} role={msg.role} content={msg.content} />
+                ))}
+                {isStreaming && (
+                  <ChatMessage
+                    role={model as ModelRole}
+                    content={streamContent}
+                    isStreaming
+                  />
+                )}
+                {error && (
+                  <div className="text-red-400 text-sm text-center py-2">
+                    {error}
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+            )}
           </div>
 
           {/* ── Input bar ── */}
           <div className="shrink-0 border-t border-gray-800 px-4 py-3 bg-gray-900/40">
+            {error && (
+              <p className="text-red-400 text-xs text-center mb-2">{error}</p>
+            )}
             <form
-              onSubmit={e => { e.preventDefault() }}
+              onSubmit={handleSubmit}
               className="flex items-center gap-2 max-w-3xl mx-auto"
             >
               <input
@@ -105,11 +202,12 @@ export default function Assistant() {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 placeholder={compareMode ? 'Type a question for both models…' : 'Type a question…'}
-                className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                disabled={isStreaming}
+                className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
               />
               <button
                 type="submit"
-                disabled={!input.trim()}
+                disabled={!input.trim() || isStreaming}
                 className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
               >
                 →
