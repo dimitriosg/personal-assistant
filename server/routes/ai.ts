@@ -175,4 +175,139 @@ router.post('/chat', async (req: Request, res: Response) => {
   }
 })
 
+// ── POST /api/ai/compare — both models streaming via single SSE connection ───
+
+interface CompareRequestBody {
+  message: string
+  conversationId?: string
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>
+}
+
+router.post('/compare', async (req: Request, res: Response) => {
+  const { message, history } = req.body as CompareRequestBody
+
+  if (!message || typeof message !== 'string') {
+    return res.status(400).json({ error: 'message is required' })
+  }
+
+  // Validate both API keys before switching to SSE mode
+  let openaiClient: OpenAI
+  let anthropicClient: Anthropic
+  try {
+    openaiClient = getOpenAI()
+    anthropicClient = getAnthropic()
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    return res.status(500).json({ error: msg })
+  }
+
+  // Set up SSE headers
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.flushHeaders()
+
+  let aborted = false
+
+  try {
+    const context = buildBudgetContext()
+    const systemPrompt = buildSystemPrompt(context)
+
+    const openaiMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+      { role: 'system', content: systemPrompt },
+    ]
+    const anthropicMessages: Array<{ role: 'user' | 'assistant'; content: string }> = []
+
+    // Append conversation history if provided
+    if (Array.isArray(history)) {
+      for (const h of history) {
+        if (h.role === 'user' || h.role === 'assistant') {
+          openaiMessages.push({ role: h.role, content: h.content })
+          anthropicMessages.push({ role: h.role, content: h.content })
+        }
+      }
+    }
+
+    openaiMessages.push({ role: 'user', content: message })
+    anthropicMessages.push({ role: 'user', content: message })
+
+    // ── GPT-4o Mini stream ──────────────────────────────────────────────────
+    const streamGPT = async () => {
+      const stream = await openaiClient.chat.completions.create({
+        model: 'gpt-4o-mini',
+        stream: true,
+        stream_options: { include_usage: true },
+        messages: openaiMessages,
+      })
+
+      req.on('close', () => {
+        aborted = true
+        stream.controller.abort()
+      })
+
+      let totalTokens = 0
+      for await (const chunk of stream) {
+        if (aborted) break
+        const delta = chunk.choices?.[0]?.delta?.content ?? ''
+        if (delta) {
+          res.write(`data: ${JSON.stringify({ source: 'gpt4o_mini', delta })}\n\n`)
+        }
+        if (chunk.usage) {
+          totalTokens = chunk.usage.total_tokens
+        }
+      }
+
+      if (!aborted) {
+        res.write(`data: ${JSON.stringify({ source: 'gpt4o_mini', done: true, tokens_used: totalTokens })}\n\n`)
+      }
+    }
+
+    // ── Claude Haiku stream ─────────────────────────────────────────────────
+    const streamHaiku = async () => {
+      const stream = anthropicClient.messages.stream({
+        model: 'claude-haiku-4-5',
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: anthropicMessages,
+      })
+
+      res.on('close', () => {
+        aborted = true
+        stream.abort()
+      })
+
+      for await (const event of stream) {
+        if (aborted) break
+        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+          const delta = event.delta.text ?? ''
+          if (delta) {
+            res.write(`data: ${JSON.stringify({ source: 'haiku', delta })}\n\n`)
+          }
+        }
+      }
+
+      if (!aborted) {
+        const finalMessage = await stream.finalMessage()
+        const tokens = finalMessage.usage.input_tokens + finalMessage.usage.output_tokens
+        res.write(`data: ${JSON.stringify({ source: 'haiku', done: true, tokens_used: tokens })}\n\n`)
+      }
+    }
+
+    // Run both streams in parallel
+    await Promise.all([streamGPT(), streamHaiku()])
+
+    if (!aborted) {
+      res.end()
+    }
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+    if (res.headersSent) {
+      res.write(`data: ${JSON.stringify({ error: errorMessage })}\n\n`)
+      res.end()
+    } else {
+      res.status(500).json({ error: errorMessage })
+    }
+  }
+})
+
 export default router
