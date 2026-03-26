@@ -31,7 +31,7 @@ export default function Assistant() {
   const [conversationId, setConversationId] = useState(() => crypto.randomUUID())
   const chatEndRef = useRef<HTMLDivElement>(null)
 
-  const { content: streamContent, isStreaming, error, send } = useAIStream('/api/ai/chat')
+  const { content: streamContent, isStreaming, error, send, reset } = useAIStream('/api/ai/chat')
 
   // Auto-scroll to bottom when new messages or streaming content arrive
   useEffect(() => {
@@ -84,6 +84,7 @@ export default function Assistant() {
     setMessages([])
     setInput('')
     setConversationId(crypto.randomUUID())
+    reset()
   }
 
   const hasMessages = messages.length > 0 || isStreaming
