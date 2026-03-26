@@ -27,8 +27,8 @@ interface Message {
 }
 
 export default function Assistant() {
-  const [model, setModel] = useState<string>('gpt4o_mini')
-  const [compareMode, setCompareMode] = useState(false)
+  const [model, setModel] = useState<string>(() => localStorage.getItem('ai_default_model') ?? 'gpt4o_mini')
+  const [compareMode, setCompareMode] = useState(() => (localStorage.getItem('ai_default_mode') ?? 'single') === 'compare')
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [conversationId, setConversationId] = useState(() => crypto.randomUUID())
