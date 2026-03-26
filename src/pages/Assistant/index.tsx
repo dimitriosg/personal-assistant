@@ -3,7 +3,7 @@ import { useAIStream } from '../../hooks/useAIStream'
 import ChatMessage from '../../components/assistant/ChatMessage'
 
 const QUICK_ACTIONS = [
-  { label: 'Where am I overspending?', message: 'Where am I overspending this month? Show me the categories that are over budget and suggest how to fix them.' },
+  { label: 'Where am I overspending?', message: 'Looking at my current budget, which categories am I overspending in and by how much?' },
   { label: 'Can I afford something?', message: null as string | null, promptUser: true },
   { label: 'What should I postpone?', message: 'Based on my current budget, which categories or targets should I postpone this month to reduce financial stress?' },
   { label: 'Am I on track?', message: 'Give me a brief overall assessment of my budget this month. Am I on track, overspending, or doing well?' },
