@@ -11,6 +11,7 @@ import StressTest from './pages/StressTest'
 import Postpone from './pages/Postpone'
 import Calendar from './pages/Calendar'
 import Prompt from './pages/Prompt'
+import Assistant from './pages/Assistant'
 import Settings from './pages/Settings'
 import Transactions from './pages/Transactions'
 
@@ -48,6 +49,7 @@ function AppRoutes() {
         <Route path="/postpone"      element={<ErrorBoundary><Postpone /></ErrorBoundary>} />
         <Route path="/calendar"      element={<ErrorBoundary><Calendar /></ErrorBoundary>} />
         <Route path="/prompt"        element={<ErrorBoundary><Prompt /></ErrorBoundary>} />
+        <Route path="/assistant"     element={<ErrorBoundary><Assistant /></ErrorBoundary>} />
         <Route path="/settings"      element={<ErrorBoundary><Settings /></ErrorBoundary>} />
       </Route>
 
