@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { label: 'Postpone',         path: '/postpone',      end: false },
   { label: 'Calendar',         path: '/calendar',      end: false },
   { label: 'Prompt',           path: '/prompt',        end: false },
+  { label: 'AI Assistant',     path: '/assistant',     end: false },
   { label: 'Settings',         path: '/settings',      end: false },
 ]
 
@@ -24,8 +25,9 @@ const MOBILE_TABS = [
 const MORE_ITEMS = [
   { label: 'Stress Test', path: '/stress-test' },
   { label: 'Postpone',    path: '/postpone' },
-  { label: 'Calendar',    path: '/calendar' },
-  { label: 'Prompt',      path: '/prompt' },
+  { label: 'Calendar',       path: '/calendar' },
+  { label: 'Prompt',         path: '/prompt' },
+  { label: 'AI Assistant',   path: '/assistant' },
 ]
 
 function linkClass({ isActive }: { isActive: boolean }) {
@@ -43,7 +45,7 @@ function tabClass({ isActive }: { isActive: boolean }) {
 }
 
 // Pages that manage their own layout (no max-width container / padding)
-const FULL_BLEED_PAGES = ['/']
+const FULL_BLEED_PAGES = ['/', '/assistant']
 
 export default function Layout() {
   const location = useLocation()
