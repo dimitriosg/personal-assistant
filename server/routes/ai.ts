@@ -366,6 +366,31 @@ router.get('/context', (_req: Request, res: Response) => {
   }
 })
 
+// ── GET /api/ai/token-usage — aggregate token usage for a date range ──────────
+
+const tokenUsageQuery = db.prepare(`
+  SELECT COALESCE(SUM(COALESCE(tokens_used, 0)), 0) AS total_tokens
+  FROM ai_conversations
+  WHERE created_at >= :from AND created_at < :to
+`)
+
+router.get('/token-usage', (req: Request, res: Response) => {
+  try {
+    const { from, to } = req.query
+    if (typeof from !== 'string' || typeof to !== 'string') {
+      return res.status(400).json({ error: 'from and to query params are required (YYYY-MM-DD)' })
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      return res.status(400).json({ error: 'from and to must be in YYYY-MM-DD format' })
+    }
+    const row = tokenUsageQuery.get({ from, to }) as { total_tokens: number }
+    res.json({ total_tokens: row.total_tokens })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    res.status(500).json({ error: msg })
+  }
+})
+
 // ── GET /api/ai/conversations — list past conversations ───────────────────────
 
 const listConversations = db.prepare(`
