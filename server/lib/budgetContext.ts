@@ -4,7 +4,7 @@ import db from '../db'
 
 interface GroupRow    { id: number; name: string; sort_order: number }
 interface CatRow     { id: number; name: string; group_id: number; sort_order: number }
-interface TargetRow  { category_id: number; target_type: string; target_amount: number; target_date: string | null }
+interface TargetRow  { category_id: number; target_type: string; target_amount: number; target_date: string | null; is_recurring: number }
 interface BudgetRow  { category_id: number; assigned: number }
 interface TxSumRow   { category_id: number; activity: number }
 interface IncomeRow  { name: string; amount: number; type: string; expected_month: number | null; is_recurring: number }
@@ -74,6 +74,11 @@ export function buildBudgetContext(month?: string): string {
   const overspent: Array<{ name: string; amount: number }> = []
   const underfunded: Array<{ name: string; gap: number }> = []
 
+  // Cost to Be Me: sum of all monthly/recurring target amounts
+  const costToBeMe = (db.prepare(
+    "SELECT COALESCE(SUM(target_amount), 0) AS total FROM category_targets WHERE target_type = 'monthly' OR is_recurring = 1"
+  ).get() as { total: number }).total
+
   // Format month label
   const [year, mon] = m.split('-')
   const monthLabel = new Date(Number(year), Number(mon) - 1).toLocaleString('en-US', { month: 'long', year: 'numeric' })
@@ -137,6 +142,7 @@ export function buildBudgetContext(month?: string): string {
   lines.push(`Total Assigned:     EUR ${totalAssigned.toFixed(2)}`)
   lines.push(`Total Spent:        EUR ${Math.abs(totalActivity).toFixed(2)}`)
   lines.push(`Expected Income:    EUR ${expectedIncome.toFixed(2)}`)
+  lines.push(`Cost to Be Me:      EUR ${costToBeMe.toFixed(2)}`)
   lines.push('')
   lines.push('CATEGORY BREAKDOWN')
   lines.push('------------------------------------------------------------')
@@ -157,6 +163,39 @@ export function buildBudgetContext(month?: string): string {
     lines.push('------------------------------------------------------------')
     for (const u of underfunded) {
       lines.push(`  ${u.name}    needs EUR ${u.gap.toFixed(2)} more`)
+    }
+  }
+
+  // Upcoming targets: targets with target_date within next 30 days
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+  const in30Str = `${in30.getFullYear()}-${String(in30.getMonth() + 1).padStart(2, '0')}-${String(in30.getDate()).padStart(2, '0')}`
+
+  const upcomingRows = db.prepare(`
+    SELECT ct.category_id, ct.target_amount, ct.target_date, c.name AS category_name
+    FROM category_targets ct
+    JOIN categories c ON c.id = ct.category_id
+    WHERE ct.target_date IS NOT NULL AND ct.target_date >= ? AND ct.target_date <= ?
+    ORDER BY ct.target_date
+  `).all(todayStr, in30Str) as Array<{ category_id: number; target_amount: number; target_date: string; category_name: string }>
+
+  if (upcomingRows.length > 0) {
+    lines.push('')
+    lines.push('UPCOMING TARGETS (next 30 days)')
+    lines.push('------------------------------------------------------------')
+    for (const u of upcomingRows) {
+      const assigned = budgetMap.get(u.category_id) ?? 0
+      const activity = activityMap.get(u.category_id) ?? 0
+      const available = calculateAvailable(u.category_id, m, assigned, activity)
+      const needed = Math.max(0, +(u.target_amount - available).toFixed(2))
+      const [tYear, tMon, tDay] = u.target_date.split('-')
+      const dueMonth = new Date(Number(tYear), Number(tMon) - 1).toLocaleString('en-US', { month: 'short' })
+      const dueLabel = `${dueMonth} ${Number(tDay)}`
+      if (needed > 0) {
+        lines.push(`  ${u.category_name}    due ${dueLabel}  — needs EUR ${needed.toFixed(2)}`)
+      } else {
+        lines.push(`  ${u.category_name}    due ${dueLabel}  — fully funded`)
+      }
     }
   }
 
