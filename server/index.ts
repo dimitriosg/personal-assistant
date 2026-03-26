@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import './db' // initialise DB and run migrations on startup
@@ -15,6 +16,7 @@ import summaryRouter from './routes/summary'
 import postponeRouter from './routes/postpone'
 import calendarRouter from './routes/calendar'
 import promptRouter from './routes/prompt'
+import aiRouter from './routes/ai'
 
 const app = express()
 const PORT = 3001
@@ -37,6 +39,7 @@ app.use('/api/summary', summaryRouter)
 app.use('/api/postpone', postponeRouter)
 app.use('/api/calendar', calendarRouter)
 app.use('/api/prompt', promptRouter)
+app.use('/api/ai', aiRouter)
 
 // Health check
 app.get('/api/health', (_req, res) => {
