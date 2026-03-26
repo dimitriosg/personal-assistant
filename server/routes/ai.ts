@@ -141,7 +141,7 @@ router.post('/chat', async (req: Request, res: Response) => {
 
       // Abort the Anthropic stream if client disconnects
       let aborted = false
-      req.on('close', () => {
+      res.on('close', () => {
         aborted = true
         stream.abort()
       })
