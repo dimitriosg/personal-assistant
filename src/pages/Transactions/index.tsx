@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { get, post, put, del } from '../../lib/api'
 import type { Transaction, CategoryGroup, SortField, SortDir, Filters } from './types'
 import TransactionForm, { type TransactionPayload } from './TransactionForm'
-import CategoryPicker from './CategoryPicker'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -250,13 +249,6 @@ export default function Transactions() {
 
   function setFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
     setFilters(f => ({ ...f, [key]: value }))
-  }
-
-  // ── Sort indicator ─────────────────────────────────────────────────────
-
-  function sortIcon(field: SortField) {
-    if (field !== sortField) return <span className="text-gray-700 ml-1">↕</span>
-    return <span className="text-indigo-400 ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
   }
 
   // ── Render ─────────────────────────────────────────────────────────────
