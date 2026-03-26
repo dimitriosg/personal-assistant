@@ -310,4 +310,18 @@ router.post('/compare', async (req: Request, res: Response) => {
   }
 })
 
+// ── GET /api/ai/context — temporary debug endpoint to view budget context ─────
+// TODO: Remove this endpoint once the AI Assistant frontend is complete (Phase 7 Step 6+)
+
+router.get('/context', (_req: Request, res: Response) => {
+  try {
+    const context = buildBudgetContext()
+    res.setHeader('Content-Type', 'text/plain')
+    res.send(context)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    res.status(500).json({ error: msg })
+  }
+})
+
 export default router
