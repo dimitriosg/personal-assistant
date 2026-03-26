@@ -18,6 +18,7 @@ const MODELS = [
 type ModelRole = 'gpt4o_mini' | 'haiku'
 
 interface Message {
+  id: string
   role: 'user' | ModelRole
   content: string
 }
@@ -27,7 +28,7 @@ export default function Assistant() {
   const [compareMode, setCompareMode] = useState(false)
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
-  const [conversationId] = useState(() => crypto.randomUUID())
+  const [conversationId, setConversationId] = useState(() => crypto.randomUUID())
   const chatEndRef = useRef<HTMLDivElement>(null)
 
   const { content: streamContent, isStreaming, error, send } = useAIStream('/api/ai/chat')
@@ -41,7 +42,7 @@ export default function Assistant() {
   const prevStreamingRef = useRef(false)
   useEffect(() => {
     if (prevStreamingRef.current && !isStreaming && streamContent) {
-      setMessages(prev => [...prev, { role: model as ModelRole, content: streamContent }])
+      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: model as ModelRole, content: streamContent }])
     }
     prevStreamingRef.current = isStreaming
   }, [isStreaming, streamContent, model])
@@ -49,7 +50,7 @@ export default function Assistant() {
   const handleSend = useCallback((text: string) => {
     if (!text.trim() || isStreaming) return
 
-    const userMessage: Message = { role: 'user', content: text.trim() }
+    const userMessage: Message = { id: crypto.randomUUID(), role: 'user', content: text.trim() }
     setMessages(prev => [...prev, userMessage])
     setInput('')
 
@@ -78,9 +79,11 @@ export default function Assistant() {
   }
 
   const handleNewConversation = () => {
-    // For now, just reload the page to get a fresh state
+    // Reset local state for a fresh conversation
     // ConversationHistory sidebar API calls are Step 10
-    window.location.reload()
+    setMessages([])
+    setInput('')
+    setConversationId(crypto.randomUUID())
   }
 
   const hasMessages = messages.length > 0 || isStreaming
@@ -168,8 +171,8 @@ export default function Assistant() {
             ) : (
               /* Messages list */
               <div className="flex flex-col gap-4 max-w-3xl mx-auto">
-                {messages.map((msg, i) => (
-                  <ChatMessage key={i} role={msg.role} content={msg.content} />
+                {messages.map((msg) => (
+                  <ChatMessage key={msg.id} role={msg.role} content={msg.content} />
                 ))}
                 {isStreaming && (
                   <ChatMessage

@@ -22,7 +22,9 @@ export function useAIStream(endpoint: string) {
         throw new Error(text || `HTTP ${res.status}`)
       }
 
-      const reader = res.body!.getReader()
+      if (!res.body) throw new Error('Response body is empty')
+
+      const reader = res.body.getReader()
       const decoder = new TextDecoder()
 
       while (true) {
@@ -31,17 +33,21 @@ export function useAIStream(endpoint: string) {
         const text = decoder.decode(value)
         const lines = text.split('\n').filter(l => l.startsWith('data: '))
         for (const line of lines) {
-          const data = JSON.parse(line.slice(6))
-          if (data.error) {
-            setError(data.error)
-            setIsStreaming(false)
-            return
+          try {
+            const data = JSON.parse(line.slice(6))
+            if (data.error) {
+              setError(data.error)
+              setIsStreaming(false)
+              return
+            }
+            if (data.done) {
+              setIsStreaming(false)
+              return
+            }
+            if (data.delta) setContent(prev => prev + data.delta)
+          } catch {
+            // Skip malformed SSE lines
           }
-          if (data.done) {
-            setIsStreaming(false)
-            return
-          }
-          if (data.delta) setContent(prev => prev + data.delta)
         }
       }
     } catch (e) {
