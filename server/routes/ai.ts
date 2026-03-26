@@ -35,6 +35,10 @@ router.post('/chat', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'message is required' })
   }
 
+  if (!model || typeof model !== 'string') {
+    return res.status(400).json({ error: 'model is required' })
+  }
+
   if (model !== 'gpt4o_mini') {
     return res.status(400).json({ error: `Unsupported model: ${model}. Only "gpt4o_mini" is currently supported.` })
   }
@@ -80,8 +84,16 @@ router.post('/chat', async (req: Request, res: Response) => {
       messages,
     })
 
+    // Abort the OpenAI stream if client disconnects
+    let aborted = false
+    req.on('close', () => {
+      aborted = true
+      stream.controller.abort()
+    })
+
     let totalTokens = 0
     for await (const chunk of stream) {
+      if (aborted) break
       const delta = chunk.choices?.[0]?.delta?.content ?? ''
       if (delta) {
         res.write(`data: ${JSON.stringify({ delta })}\n\n`)
@@ -91,8 +103,10 @@ router.post('/chat', async (req: Request, res: Response) => {
       }
     }
 
-    res.write(`data: ${JSON.stringify({ done: true, tokens_used: totalTokens })}\n\n`)
-    res.end()
+    if (!aborted) {
+      res.write(`data: ${JSON.stringify({ done: true, tokens_used: totalTokens })}\n\n`)
+      res.end()
+    }
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error'
     // If headers already sent (SSE started), send error as SSE event
