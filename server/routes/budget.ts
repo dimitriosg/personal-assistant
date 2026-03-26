@@ -281,8 +281,7 @@ router.post('/move', (req, res) => {
 
   if (!month || !/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ error: 'month must be YYYY-MM format' })
   if (amount === undefined || amount === null || isNaN(Number(amount)) || Number(amount) <= 0) return res.status(400).json({ error: 'amount must be > 0' })
-  if (fromCategoryId === undefined && toCategoryId === undefined) return res.status(400).json({ error: 'fromCategoryId or toCategoryId is required' })
-  if (fromCategoryId == null && toCategoryId == null) return res.status(400).json({ error: 'both fromCategoryId and toCategoryId cannot be null' })
+  if (fromCategoryId == null && toCategoryId == null) return res.status(400).json({ error: 'fromCategoryId or toCategoryId is required' })
 
   const amt = Number(amount)
 
@@ -366,7 +365,7 @@ router.post('/moves/:id/undo', (req, res) => {
   } | undefined
 
   if (!move) return res.status(404).json({ error: 'Move not found' })
-  if (move.undone) return res.status(400).json({ error: 'Move already undone' })
+  if (move.undone === 1) return res.status(400).json({ error: 'Move already undone' })
 
   db.exec('BEGIN')
   try {
