@@ -380,6 +380,9 @@ router.get('/token-usage', (req: Request, res: Response) => {
     if (typeof from !== 'string' || typeof to !== 'string') {
       return res.status(400).json({ error: 'from and to query params are required (YYYY-MM-DD)' })
     }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      return res.status(400).json({ error: 'from and to must be in YYYY-MM-DD format' })
+    }
     const row = tokenUsageQuery.get({ from, to }) as { total_tokens: number }
     res.json({ total_tokens: row.total_tokens })
   } catch (err: unknown) {
