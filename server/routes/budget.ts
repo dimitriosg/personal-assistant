@@ -64,6 +64,50 @@ function calculateAvailable(
   return +(assigned + activity + carryover).toFixed(2)
 }
 
+// ── GET /api/budget/moves?month=YYYY-MM ──────────────────────────────────────
+// Returns last 20 moves for the month, newest first, with category names.
+// NOTE: Must be registered BEFORE /:month to avoid being caught by the param route.
+
+router.get('/moves', (req, res) => {
+  const month = req.query.month as string | undefined
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+    return res.status(400).json({ error: 'month query param must be YYYY-MM format' })
+  }
+
+  const rows = db.prepare(`
+    SELECT
+      bm.id,
+      bm.from_category_id,
+      bm.to_category_id,
+      bm.amount,
+      bm.moved_at,
+      bm.undone,
+      fc.name AS from_name,
+      tc.name AS to_name
+    FROM budget_moves bm
+    LEFT JOIN categories fc ON fc.id = bm.from_category_id
+    LEFT JOIN categories tc ON tc.id = bm.to_category_id
+    WHERE bm.month = ?
+    ORDER BY bm.moved_at DESC, bm.id DESC
+    LIMIT 20
+  `).all(month) as Array<{
+    id: number; from_category_id: number | null; to_category_id: number | null
+    amount: number; moved_at: string; undone: number
+    from_name: string | null; to_name: string | null
+  }>
+
+  const moves = rows.map(r => ({
+    id: r.id,
+    from: r.from_name ?? 'Ready to Assign',
+    to: r.to_name ?? 'Ready to Assign',
+    amount: r.amount,
+    moved_at: r.moved_at,
+    undone: r.undone,
+  }))
+
+  res.json(moves)
+})
+
 // ── GET /api/budget/:month ────────────────────────────────────────────────────
 // Returns all groups, categories, with assigned, activity, available for the month
 
@@ -227,55 +271,140 @@ router.post('/assign', (req, res) => {
 })
 
 // ── POST /api/budget/move ─────────────────────────────────────────────────────
-// Move money between categories for a given month
+// Move money between categories (or Ready to Assign) for a given month.
+// Inserts a row into budget_moves and returns resolved category names.
 
 router.post('/move', (req, res) => {
-  const { from_category_id, to_category_id, month, amount } = req.body as {
-    from_category_id?: number; to_category_id?: number; month?: string; amount?: number
+  const { month, fromCategoryId, toCategoryId, amount } = req.body as {
+    month?: string; fromCategoryId?: number | null; toCategoryId?: number | null; amount?: number
   }
 
-  if (!from_category_id) return res.status(400).json({ error: 'from_category_id is required' })
-  if (!to_category_id) return res.status(400).json({ error: 'to_category_id is required' })
   if (!month || !/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ error: 'month must be YYYY-MM format' })
-  if (amount === undefined || amount === null || isNaN(Number(amount)) || amount <= 0) return res.status(400).json({ error: 'amount must be > 0' })
+  if (amount === undefined || amount === null || isNaN(Number(amount)) || Number(amount) <= 0) return res.status(400).json({ error: 'amount must be > 0' })
+  if (fromCategoryId === undefined && toCategoryId === undefined) return res.status(400).json({ error: 'fromCategoryId or toCategoryId is required' })
+  if (fromCategoryId == null && toCategoryId == null) return res.status(400).json({ error: 'both fromCategoryId and toCategoryId cannot be null' })
 
-  if (!db.prepare('SELECT id FROM categories WHERE id = ?').get(from_category_id)) {
-    return res.status(404).json({ error: 'Source category not found' })
+  const amt = Number(amount)
+
+  // Validate categories exist (when not null = Ready to Assign)
+  let fromName = 'Ready to Assign'
+  let toName = 'Ready to Assign'
+
+  if (fromCategoryId != null) {
+    const cat = db.prepare('SELECT name FROM categories WHERE id = ?').get(fromCategoryId) as { name: string } | undefined
+    if (!cat) return res.status(404).json({ error: 'Source category not found' })
+    fromName = cat.name
   }
-  if (!db.prepare('SELECT id FROM categories WHERE id = ?').get(to_category_id)) {
-    return res.status(404).json({ error: 'Destination category not found' })
+  if (toCategoryId != null) {
+    const cat = db.prepare('SELECT name FROM categories WHERE id = ?').get(toCategoryId) as { name: string } | undefined
+    if (!cat) return res.status(404).json({ error: 'Destination category not found' })
+    toName = cat.name
   }
 
   db.exec('BEGIN')
   try {
-    // Reduce from source
-    const fromRow = db.prepare(
-      'SELECT assigned FROM monthly_budgets WHERE category_id = ? AND month = ?'
-    ).get(from_category_id, month) as { assigned: number } | undefined
+    // Reduce from source category (skip if null = Ready to Assign)
+    if (fromCategoryId != null) {
+      const fromRow = db.prepare(
+        'SELECT assigned FROM monthly_budgets WHERE category_id = ? AND month = ?'
+      ).get(fromCategoryId, month) as { assigned: number } | undefined
 
-    const fromAssigned = (fromRow?.assigned ?? 0) - amount
+      const fromAssigned = (fromRow?.assigned ?? 0) - amt
 
-    db.prepare(`
-      INSERT INTO monthly_budgets (category_id, month, assigned)
-      VALUES (?, ?, ?)
-      ON CONFLICT(category_id, month) DO UPDATE SET assigned = excluded.assigned
-    `).run(from_category_id, month, fromAssigned)
+      db.prepare(`
+        INSERT INTO monthly_budgets (category_id, month, assigned)
+        VALUES (?, ?, ?)
+        ON CONFLICT(category_id, month) DO UPDATE SET assigned = excluded.assigned
+      `).run(fromCategoryId, month, fromAssigned)
+    }
 
-    // Add to destination
-    const toRow = db.prepare(
-      'SELECT assigned FROM monthly_budgets WHERE category_id = ? AND month = ?'
-    ).get(to_category_id, month) as { assigned: number } | undefined
+    // Add to destination category (skip if null = Ready to Assign)
+    if (toCategoryId != null) {
+      const toRow = db.prepare(
+        'SELECT assigned FROM monthly_budgets WHERE category_id = ? AND month = ?'
+      ).get(toCategoryId, month) as { assigned: number } | undefined
 
-    const toAssigned = (toRow?.assigned ?? 0) + amount
+      const toAssigned = (toRow?.assigned ?? 0) + amt
 
-    db.prepare(`
-      INSERT INTO monthly_budgets (category_id, month, assigned)
-      VALUES (?, ?, ?)
-      ON CONFLICT(category_id, month) DO UPDATE SET assigned = excluded.assigned
-    `).run(to_category_id, month, toAssigned)
+      db.prepare(`
+        INSERT INTO monthly_budgets (category_id, month, assigned)
+        VALUES (?, ?, ?)
+        ON CONFLICT(category_id, month) DO UPDATE SET assigned = excluded.assigned
+      `).run(toCategoryId, month, toAssigned)
+    }
+
+    // Insert into budget_moves log
+    const result = db.prepare(`
+      INSERT INTO budget_moves (month, from_category_id, to_category_id, amount)
+      VALUES (?, ?, ?, ?)
+    `).run(month, fromCategoryId ?? null, toCategoryId ?? null, amt)
+
+    const moveId = Number(result.lastInsertRowid)
 
     db.exec('COMMIT')
-    res.json({ ok: true, from_category_id, to_category_id, amount, month })
+    res.json({ id: moveId, from: fromName, to: toName, amount: amt })
+  } catch (err) {
+    db.exec('ROLLBACK')
+    const message = err instanceof Error ? err.message : String(err)
+    res.status(500).json({ error: message })
+  }
+})
+
+// ── POST /api/budget/moves/:id/undo ──────────────────────────────────────────
+// Reverses a move: sets undone = 1, adds amount back to from_category,
+// removes from to_category.
+
+router.post('/moves/:id/undo', (req, res) => {
+  const moveId = Number(req.params.id)
+  if (isNaN(moveId)) return res.status(400).json({ error: 'Invalid move id' })
+
+  const move = db.prepare(
+    'SELECT id, month, from_category_id, to_category_id, amount, undone FROM budget_moves WHERE id = ?'
+  ).get(moveId) as {
+    id: number; month: string; from_category_id: number | null
+    to_category_id: number | null; amount: number; undone: number
+  } | undefined
+
+  if (!move) return res.status(404).json({ error: 'Move not found' })
+  if (move.undone) return res.status(400).json({ error: 'Move already undone' })
+
+  db.exec('BEGIN')
+  try {
+    // Mark as undone
+    db.prepare('UPDATE budget_moves SET undone = 1 WHERE id = ?').run(moveId)
+
+    // Reverse: add amount back to from_category
+    if (move.from_category_id != null) {
+      const fromRow = db.prepare(
+        'SELECT assigned FROM monthly_budgets WHERE category_id = ? AND month = ?'
+      ).get(move.from_category_id, move.month) as { assigned: number } | undefined
+
+      const fromAssigned = (fromRow?.assigned ?? 0) + move.amount
+
+      db.prepare(`
+        INSERT INTO monthly_budgets (category_id, month, assigned)
+        VALUES (?, ?, ?)
+        ON CONFLICT(category_id, month) DO UPDATE SET assigned = excluded.assigned
+      `).run(move.from_category_id, move.month, fromAssigned)
+    }
+
+    // Reverse: remove amount from to_category
+    if (move.to_category_id != null) {
+      const toRow = db.prepare(
+        'SELECT assigned FROM monthly_budgets WHERE category_id = ? AND month = ?'
+      ).get(move.to_category_id, move.month) as { assigned: number } | undefined
+
+      const toAssigned = (toRow?.assigned ?? 0) - move.amount
+
+      db.prepare(`
+        INSERT INTO monthly_budgets (category_id, month, assigned)
+        VALUES (?, ?, ?)
+        ON CONFLICT(category_id, month) DO UPDATE SET assigned = excluded.assigned
+      `).run(move.to_category_id, move.month, toAssigned)
+    }
+
+    db.exec('COMMIT')
+    res.json({ undone: true })
   } catch (err) {
     db.exec('ROLLBACK')
     const message = err instanceof Error ? err.message : String(err)
