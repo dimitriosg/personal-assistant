@@ -24,12 +24,9 @@ A local-first personal finance tracker and decision-support tool. Track income, 
 - **Purchase Stress Test** — 7-rule decision engine that evaluates purchases and returns Buy / Wait / Reject with reasoning
 - **Settings** — Reset all data and re-run the onboarding wizard
 - **Responsive UI** — Desktop sidebar + mobile bottom tab bar, dark mode by default
-
-### 📋 Planned
-
-- **Postpone View** — Ranked list of upcoming expenses by postponability
-- **Calendar View** — Monthly color-coded calendar of bills, subscriptions, and income
-- **Claude.ai Prompt Generator** — Generate formatted prompts with real financial data to paste into Claude.ai for deeper advice
+- **Postpone View** — Ranked list of underfunded categories by priority (Must Fund → Can Postpone), with move-money action. API: `GET /api/postpone?month=YYYY-MM`
+- **Calendar View** — Monthly color-coded calendar of bills, income, and category target due dates. API: `GET /api/calendar/:month`
+- **Prompt Generator** — Generates a formatted budget snapshot prompt to paste into Claude.ai. API: `GET /api/prompt?month=YYYY-MM`
 
 ## Getting Started
 

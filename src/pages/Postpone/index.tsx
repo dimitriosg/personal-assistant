@@ -112,7 +112,6 @@ export default function Postpone() {
   }
 
   const mustFund = data.items.filter(i => i.priority === 'must_fund' || i.priority === 'should_fund')
-  const canPostpone = data.items.filter(i => i.priority === 'can_postpone' || i.priority === 'should_postpone')
 
   return (
     <div className="space-y-6">
