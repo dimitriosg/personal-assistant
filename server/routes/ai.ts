@@ -374,7 +374,8 @@ const listConversations = db.prepare(`
     MIN(CASE WHEN role = 'user' THEN content END) AS preview,
     model,
     MIN(created_at) AS created_at,
-    COUNT(*) AS message_count
+    COUNT(*) AS message_count,
+    SUM(tokens_used) AS total_tokens
   FROM ai_conversations
   GROUP BY conversation_id
   ORDER BY MIN(created_at) DESC
@@ -407,6 +408,18 @@ router.get('/conversations/:conversationId', (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Conversation not found' })
     }
     res.json(rows)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    res.status(500).json({ error: msg })
+  }
+})
+
+// ── DELETE /api/ai/conversations — delete ALL conversations ───────────────────
+
+router.delete('/conversations', (_req: Request, res: Response) => {
+  try {
+    db.exec('DELETE FROM ai_conversations')
+    res.json({ deleted: true })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
     res.status(500).json({ error: msg })

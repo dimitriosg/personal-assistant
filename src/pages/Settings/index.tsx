@@ -61,6 +61,13 @@ export default function Settings() {
   // ── Reset state ─────────────────────────────────────────────────────────
   const [resetting, setResetting] = useState(false)
 
+  // ── AI settings state ──────────────────────────────────────────────────
+  const [aiModel, setAiModel] = useState(() => localStorage.getItem('ai_default_model') ?? 'gpt4o_mini')
+  const [aiMode, setAiMode] = useState(() => localStorage.getItem('ai_default_mode') ?? 'single')
+  const [tokenUsage, setTokenUsage] = useState<number>(0)
+  const [tokenLoading, setTokenLoading] = useState(true)
+  const [clearing, setClearing] = useState(false)
+
   /* ── Load data on mount ─────────────────────────────────────────────── */
 
   const loadSettings = useCallback(async () => {
@@ -90,10 +97,33 @@ export default function Settings() {
     }
   }, [])
 
+  const loadTokenUsage = useCallback(async () => {
+    setTokenLoading(true)
+    try {
+      const rows = await get<Array<{ created_at: string; total_tokens: number }>>('/ai/conversations')
+      const now = new Date()
+      const year = now.getFullYear()
+      const month = now.getMonth()
+      const total = rows.reduce((sum, r) => {
+        const d = new Date(r.created_at + 'Z')
+        if (d.getFullYear() === year && d.getMonth() === month) {
+          return sum + (r.total_tokens ?? 0)
+        }
+        return sum
+      }, 0)
+      setTokenUsage(total)
+    } catch {
+      setTokenUsage(0)
+    } finally {
+      setTokenLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     void loadSettings()
     void loadGroups()
-  }, [loadSettings, loadGroups])
+    void loadTokenUsage()
+  }, [loadSettings, loadGroups, loadTokenUsage])
 
   /* ── General settings handlers ──────────────────────────────────────── */
 
@@ -519,7 +549,91 @@ export default function Settings() {
         </div>
       </section>
 
-      {/* ── Section 4: Danger Zone ─────────────────────────────────────── */}
+      {/* ── Section 4: AI ──────────────────────────────────────────────── */}
+      <section>
+        <h2 className={sectionHeader}>AI</h2>
+        <div className={card}>
+          <div className="space-y-4">
+            {/* Default model */}
+            <div>
+              <label className={label}>Default model</label>
+              <select
+                className={input}
+                value={aiModel}
+                onChange={e => {
+                  setAiModel(e.target.value)
+                  localStorage.setItem('ai_default_model', e.target.value)
+                }}
+              >
+                <option value="gpt4o_mini">GPT-4o Mini</option>
+                <option value="haiku">Claude Haiku</option>
+              </select>
+            </div>
+
+            {/* Default mode */}
+            <div>
+              <label className={label}>Default mode</label>
+              <select
+                className={input}
+                value={aiMode}
+                onChange={e => {
+                  setAiMode(e.target.value)
+                  localStorage.setItem('ai_default_mode', e.target.value)
+                }}
+              >
+                <option value="single">Single</option>
+                <option value="compare">Compare</option>
+              </select>
+            </div>
+
+            {/* API keys note */}
+            <p className="text-xs text-gray-500 italic">
+              API keys are configured in .env (not stored here)
+            </p>
+
+            {/* Token usage */}
+            <div>
+              <label className={label}>Token usage this month</label>
+              <p className="text-sm text-gray-200">
+                {tokenLoading
+                  ? 'Loading…'
+                  : `${tokenUsage.toLocaleString()} tokens (~$${(tokenUsage / 1_000_000 * 0.40).toFixed(4)})`}
+              </p>
+            </div>
+
+            {/* Clear history */}
+            <div className="flex items-start justify-between gap-4 pt-2 border-t border-gray-800">
+              <div>
+                <p className="text-sm font-medium text-gray-200">Clear conversation history</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Permanently deletes all AI conversation history.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={clearing}
+                onClick={async () => {
+                  if (!confirm('Delete all AI conversation history? This cannot be undone.')) return
+                  setClearing(true)
+                  try {
+                    await del('/ai/conversations')
+                    setTokenUsage(0)
+                  } catch (err) {
+                    alert(errMsg(err))
+                  } finally {
+                    setClearing(false)
+                  }
+                }}
+                className="shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-800 text-red-400 hover:bg-red-950/40 disabled:opacity-50 transition-colors"
+              >
+                {clearing ? 'Clearing…' : 'Clear'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Section 5: Danger Zone ─────────────────────────────────────── */}
       <section>
         <h2 className={sectionHeader}>Danger zone</h2>
         <div className="bg-gray-900 border border-red-900/50 rounded-xl p-4">
