@@ -1,7 +1,9 @@
 import { Router, Request, Response } from 'express'
+import crypto from 'crypto'
 import OpenAI from 'openai'
 import Anthropic from '@anthropic-ai/sdk'
 import { buildBudgetContext, buildSystemPrompt } from '../lib/budgetContext'
+import db from '../db'
 
 const router = Router()
 
@@ -35,6 +37,27 @@ function getAnthropic(): Anthropic {
   return anthropic
 }
 
+// ── Helper: save a message row to ai_conversations ────────────────────────────
+
+const insertMessage = db.prepare(`
+  INSERT INTO ai_conversations (conversation_id, role, content, model, tokens_used)
+  VALUES (?, ?, ?, ?, ?)
+`)
+
+function saveMessage(
+  conversationId: string,
+  role: string,
+  content: string,
+  model: string,
+  tokensUsed: number = 0,
+): void {
+  try {
+    insertMessage.run(conversationId, role, content, model, tokensUsed)
+  } catch (err) {
+    console.warn('Failed to save ai_conversation message:', err instanceof Error ? err.message : err)
+  }
+}
+
 // ── POST /api/ai/chat — GPT-4o Mini streaming via SSE ────────────────────────
 
 interface ChatRequestBody {
@@ -45,7 +68,8 @@ interface ChatRequestBody {
 }
 
 router.post('/chat', async (req: Request, res: Response) => {
-  const { message, model, history } = req.body as ChatRequestBody
+  const { message, model, history, conversationId: clientConvId } = req.body as ChatRequestBody
+  const conversationId = clientConvId || crypto.randomUUID()
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message is required' })
@@ -114,10 +138,12 @@ router.post('/chat', async (req: Request, res: Response) => {
       })
 
       let totalTokens = 0
+      let fullResponse = ''
       for await (const chunk of stream) {
         if (aborted) break
         const delta = chunk.choices?.[0]?.delta?.content ?? ''
         if (delta) {
+          fullResponse += delta
           res.write(`data: ${JSON.stringify({ delta })}\n\n`)
         }
         if (chunk.usage) {
@@ -126,7 +152,9 @@ router.post('/chat', async (req: Request, res: Response) => {
       }
 
       if (!aborted) {
-        res.write(`data: ${JSON.stringify({ done: true, tokens_used: totalTokens })}\n\n`)
+        saveMessage(conversationId, 'user', message, 'gpt-4o-mini', 0)
+        saveMessage(conversationId, 'gpt4o_mini', fullResponse, 'gpt-4o-mini', totalTokens)
+        res.write(`data: ${JSON.stringify({ done: true, tokens_used: totalTokens, conversation_id: conversationId })}\n\n`)
         res.end()
       }
     } else if (model === 'haiku') {
@@ -146,11 +174,13 @@ router.post('/chat', async (req: Request, res: Response) => {
         stream.abort()
       })
 
+      let fullResponse = ''
       for await (const event of stream) {
         if (aborted) break
         if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
           const delta = event.delta.text ?? ''
           if (delta) {
+            fullResponse += delta
             res.write(`data: ${JSON.stringify({ delta })}\n\n`)
           }
         }
@@ -159,7 +189,9 @@ router.post('/chat', async (req: Request, res: Response) => {
       if (!aborted) {
         const finalMessage = await stream.finalMessage()
         const tokens = finalMessage.usage.input_tokens + finalMessage.usage.output_tokens
-        res.write(`data: ${JSON.stringify({ done: true, tokens_used: tokens })}\n\n`)
+        saveMessage(conversationId, 'user', message, 'claude-haiku-3-5', 0)
+        saveMessage(conversationId, 'haiku', fullResponse, 'claude-haiku-3-5', tokens)
+        res.write(`data: ${JSON.stringify({ done: true, tokens_used: tokens, conversation_id: conversationId })}\n\n`)
         res.end()
       }
     }
@@ -184,7 +216,8 @@ interface CompareRequestBody {
 }
 
 router.post('/compare', async (req: Request, res: Response) => {
-  const { message, history } = req.body as CompareRequestBody
+  const { message, history, conversationId: clientConvId } = req.body as CompareRequestBody
+  const conversationId = clientConvId || crypto.randomUUID()
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message is required' })
@@ -232,6 +265,8 @@ router.post('/compare', async (req: Request, res: Response) => {
     anthropicMessages.push({ role: 'user', content: message })
 
     // ── GPT-4o Mini stream ──────────────────────────────────────────────────
+    let gptResponse = ''
+    let gptTokens = 0
     const streamGPT = async () => {
       const stream = await openaiClient.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -245,24 +280,26 @@ router.post('/compare', async (req: Request, res: Response) => {
         stream.controller.abort()
       })
 
-      let totalTokens = 0
       for await (const chunk of stream) {
         if (aborted) break
         const delta = chunk.choices?.[0]?.delta?.content ?? ''
         if (delta) {
+          gptResponse += delta
           res.write(`data: ${JSON.stringify({ source: 'gpt4o_mini', delta })}\n\n`)
         }
         if (chunk.usage) {
-          totalTokens = chunk.usage.total_tokens
+          gptTokens = chunk.usage.total_tokens
         }
       }
 
       if (!aborted) {
-        res.write(`data: ${JSON.stringify({ source: 'gpt4o_mini', done: true, tokens_used: totalTokens })}\n\n`)
+        res.write(`data: ${JSON.stringify({ source: 'gpt4o_mini', done: true, tokens_used: gptTokens })}\n\n`)
       }
     }
 
     // ── Claude Haiku stream ─────────────────────────────────────────────────
+    let haikuResponse = ''
+    let haikuTokens = 0
     const streamHaiku = async () => {
       const stream = anthropicClient.messages.stream({
         model: 'claude-haiku-4-5',
@@ -281,6 +318,7 @@ router.post('/compare', async (req: Request, res: Response) => {
         if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
           const delta = event.delta.text ?? ''
           if (delta) {
+            haikuResponse += delta
             res.write(`data: ${JSON.stringify({ source: 'haiku', delta })}\n\n`)
           }
         }
@@ -288,8 +326,8 @@ router.post('/compare', async (req: Request, res: Response) => {
 
       if (!aborted) {
         const finalMessage = await stream.finalMessage()
-        const tokens = finalMessage.usage.input_tokens + finalMessage.usage.output_tokens
-        res.write(`data: ${JSON.stringify({ source: 'haiku', done: true, tokens_used: tokens })}\n\n`)
+        haikuTokens = finalMessage.usage.input_tokens + finalMessage.usage.output_tokens
+        res.write(`data: ${JSON.stringify({ source: 'haiku', done: true, tokens_used: haikuTokens })}\n\n`)
       }
     }
 
@@ -297,6 +335,10 @@ router.post('/compare', async (req: Request, res: Response) => {
     await Promise.all([streamGPT(), streamHaiku()])
 
     if (!aborted) {
+      saveMessage(conversationId, 'user', message, 'compare', 0)
+      saveMessage(conversationId, 'gpt4o_mini', gptResponse, 'compare', gptTokens)
+      saveMessage(conversationId, 'haiku', haikuResponse, 'compare', haikuTokens)
+      res.write(`data: ${JSON.stringify({ conversation_id: conversationId })}\n\n`)
       res.end()
     }
   } catch (err: unknown) {
@@ -318,6 +360,70 @@ router.get('/context', (_req: Request, res: Response) => {
     const context = buildBudgetContext()
     res.setHeader('Content-Type', 'text/plain')
     res.send(context)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    res.status(500).json({ error: msg })
+  }
+})
+
+// ── GET /api/ai/conversations — list past conversations ───────────────────────
+
+const listConversations = db.prepare(`
+  SELECT
+    conversation_id,
+    MIN(CASE WHEN role = 'user' THEN content END) AS preview,
+    model,
+    MIN(created_at) AS created_at,
+    COUNT(*) AS message_count
+  FROM ai_conversations
+  GROUP BY conversation_id
+  ORDER BY MIN(created_at) DESC
+`)
+
+router.get('/conversations', (_req: Request, res: Response) => {
+  try {
+    const rows = listConversations.all() as Array<Record<string, unknown>>
+    res.json(rows)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    res.status(500).json({ error: msg })
+  }
+})
+
+// ── GET /api/ai/conversations/:conversationId — get messages in a conversation
+
+const getConversation = db.prepare(`
+  SELECT role, content, tokens_used, created_at
+  FROM ai_conversations
+  WHERE conversation_id = ?
+  ORDER BY created_at ASC, id ASC
+`)
+
+router.get('/conversations/:conversationId', (req: Request, res: Response) => {
+  try {
+    const { conversationId } = req.params
+    const rows = getConversation.all(conversationId) as Array<Record<string, unknown>>
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Conversation not found' })
+    }
+    res.json(rows)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    res.status(500).json({ error: msg })
+  }
+})
+
+// ── DELETE /api/ai/conversations/:conversationId — delete a conversation ──────
+
+const deleteConversation = db.prepare(`
+  DELETE FROM ai_conversations WHERE conversation_id = ?
+`)
+
+router.delete('/conversations/:conversationId', (req: Request, res: Response) => {
+  try {
+    const { conversationId } = req.params
+    deleteConversation.run(conversationId)
+    res.json({ deleted: true })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
     res.status(500).json({ error: msg })

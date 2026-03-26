@@ -133,6 +133,25 @@ db.exec(`
   )
 `)
 
+// ── AI conversations table ────────────────────────────────────────────────────
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ai_conversations (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id TEXT    NOT NULL,
+    role            TEXT    NOT NULL,
+    content         TEXT    NOT NULL,
+    model           TEXT    NOT NULL,
+    tokens_used     INTEGER DEFAULT 0,
+    created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+  )
+`)
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_ai_conversations_conv_id
+    ON ai_conversations(conversation_id)
+`)
+
 // ── Legacy schema migrations (safe to run on existing DBs) ───────────────────
 try { db.exec("ALTER TABLE income ADD COLUMN due_day INTEGER") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE expenses ADD COLUMN custom_split REAL") } catch { /* already exists */ }
