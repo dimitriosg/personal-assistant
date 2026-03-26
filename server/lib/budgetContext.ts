@@ -112,14 +112,14 @@ export function buildBudgetContext(month?: string): string {
         underfunded.push({ name: c.name, gap: +(target.target_amount - available).toFixed(2) })
       }
 
-      catLines.push(`  - ${c.name} | ${+assigned.toFixed(2)} | ${+activity.toFixed(2)} | ${available.toFixed(2)}${flag}`)
+      catLines.push(`  - ${c.name} | ${assigned.toFixed(2)} | ${activity.toFixed(2)} | ${available.toFixed(2)}${flag}`)
     }
 
     totalAssigned += gAssigned
     totalActivity += gActivity
 
     groupBlocks.push(
-      `Group: ${g.name}  | Assigned: ${+gAssigned.toFixed(2)} | Spent: ${+Math.abs(gActivity).toFixed(2)} | Available: ${+gAvailable.toFixed(2)}\n` +
+      `Group: ${g.name}  | Assigned: ${gAssigned.toFixed(2)} | Spent: ${Math.abs(gActivity).toFixed(2)} | Available: ${gAvailable.toFixed(2)}\n` +
       catLines.join('\n')
     )
   }
