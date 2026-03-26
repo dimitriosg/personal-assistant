@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { SummaryData } from './types'
 
 const fmt = (n: number) =>
@@ -21,7 +22,7 @@ function Row({ label, value, color }: { label: string; value: string; color?: st
   )
 }
 
-export default function MonthlySummary({ data }: Props) {
+export default memo(function MonthlySummary({ data }: Props) {
   const monthName = MONTHS[parseInt(data.month.split('-')[1], 10) - 1]
 
   return (
@@ -90,4 +91,4 @@ export default function MonthlySummary({ data }: Props) {
       </div>
     </div>
   )
-}
+})

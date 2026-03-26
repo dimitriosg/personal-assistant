@@ -1,5 +1,7 @@
 // ── Color-coded amount cell ───────────────────────────────────────────────────
 
+import { memo } from 'react'
+
 const fmt = (n: number) =>
   new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR' }).format(n)
 
@@ -18,7 +20,7 @@ interface Props {
  * - variant="activity":  red < 0 (spending), green > 0 (inflow), gray = 0
  * - variant="default":   plain text, no coloring
  */
-export default function AmountCell({ value, variant = 'default', bold = false }: Props) {
+export default memo(function AmountCell({ value, variant = 'default', bold = false }: Props) {
   let colorClass = 'text-gray-300'
 
   if (variant === 'available') {
@@ -36,4 +38,4 @@ export default function AmountCell({ value, variant = 'default', bold = false }:
       {fmt(value)}
     </span>
   )
-}
+})

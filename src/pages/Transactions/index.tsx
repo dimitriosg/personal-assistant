@@ -359,8 +359,68 @@ export default function Transactions() {
         </div>
       )}
 
-      {/* ── Transaction table ────────────────────────────────────────────── */}
-      <div className="overflow-x-auto rounded-xl border border-gray-800">
+      {/* ── Transaction cards (mobile) ──────────────────────────────────── */}
+      <div className="md:hidden space-y-2">
+        {filtered.length === 0 ? (
+          <div className="text-center py-10 text-gray-600 text-sm">No transactions found.</div>
+        ) : (
+          filtered.map(tx => (
+            <div
+              key={tx.id}
+              className="bg-gray-900/60 border border-gray-800 rounded-lg p-3 space-y-1.5"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-gray-200 truncate">
+                    {tx.payee || <span className="text-gray-600 italic">No payee</span>}
+                  </div>
+                  <div className="text-xs text-gray-500">{formatDate(tx.date)}</div>
+                </div>
+                <div className="text-right shrink-0">
+                  {tx.amount < 0 ? (
+                    <span className="text-sm font-medium text-red-400 tabular-nums">
+                      {fmt(Math.abs(tx.amount))}
+                    </span>
+                  ) : (
+                    <span className="text-sm font-medium text-green-400 tabular-nums">
+                      +{fmt(tx.amount)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  {tx.category_id ? (
+                    <CategoryBadge label={categoryLabel[tx.category_id]} />
+                  ) : (
+                    <span className="text-xs text-gray-600 italic">Uncategorized</span>
+                  )}
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => openEdit(tx)}
+                    className="text-xs text-gray-500 hover:text-indigo-400 transition-colors"
+                  >
+                    ✎ Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(tx.id)}
+                    className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+              {tx.memo && (
+                <div className="text-xs text-gray-500 truncate">{tx.memo}</div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* ── Transaction table (desktop) ──────────────────────────────────── */}
+      <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-800">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-900/60 border-b border-gray-800 text-xs text-gray-500 uppercase tracking-wider">

@@ -44,14 +44,14 @@ export default function Budget() {
     setMonth(m)
   }
 
-  async function handleAssign(categoryId: number, m: string, assigned: number) {
+  const handleAssign = useCallback(async (categoryId: number, m: string, assigned: number) => {
     try {
       await post('/budget/assign', { category_id: categoryId, month: m, assigned })
       await fetchData(m)
     } catch (err) {
       console.error('Failed to assign:', err)
     }
-  }
+  }, [fetchData])
 
   async function handleMoveComplete() {
     setShowMoveModal(false)
@@ -93,12 +93,12 @@ export default function Budget() {
         />
 
         {/* Column headers */}
-        <div className="grid grid-cols-[1fr_100px_100px_100px] gap-1 px-4 py-2
+        <div className="grid grid-cols-[1fr_80px_80px_80px] sm:grid-cols-[1fr_100px_100px_100px] gap-1 px-3 sm:px-4 py-2
           border-b border-gray-800 bg-gray-900/40 text-xs text-gray-500 uppercase tracking-wider font-medium">
           <div>Category</div>
-          <div className="text-right">Assigned</div>
-          <div className="text-right">Activity</div>
-          <div className="text-right">Available</div>
+          <div className="text-right"><span className="hidden sm:inline">Assigned</span><span className="sm:hidden">Asgn</span></div>
+          <div className="text-right"><span className="hidden sm:inline">Activity</span><span className="sm:hidden">Act</span></div>
+          <div className="text-right"><span className="hidden sm:inline">Available</span><span className="sm:hidden">Avail</span></div>
         </div>
 
         {/* Category groups */}
