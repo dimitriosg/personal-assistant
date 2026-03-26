@@ -20,6 +20,8 @@ const LANGUAGE_OPTIONS = [
   { value: 'es-LATAM', label: 'Español (LATAM)' },
 ]
 
+const COST_PER_MILLION_TOKENS = 0.40
+
 /* ── Helpers ───────────────────────────────────────────────────────────────── */
 
 function errMsg(err: unknown): string {
@@ -105,6 +107,7 @@ export default function Settings() {
       const year = now.getFullYear()
       const month = now.getMonth()
       const total = rows.reduce((sum, r) => {
+        // SQLite datetime('now') returns UTC without timezone suffix
         const d = new Date(r.created_at + 'Z')
         if (d.getFullYear() === year && d.getMonth() === month) {
           return sum + (r.total_tokens ?? 0)
@@ -597,7 +600,7 @@ export default function Settings() {
               <p className="text-sm text-gray-200">
                 {tokenLoading
                   ? 'Loading…'
-                  : `${tokenUsage.toLocaleString()} tokens (~$${(tokenUsage / 1_000_000 * 0.40).toFixed(4)})`}
+                  : `${tokenUsage.toLocaleString()} tokens (~$${(tokenUsage / 1_000_000 * COST_PER_MILLION_TOKENS).toFixed(4)})`}
               </p>
             </div>
 
