@@ -64,8 +64,14 @@ export default function Settings() {
   const [resetting, setResetting] = useState(false)
 
   // ── AI settings state ──────────────────────────────────────────────────
-  const [aiModel, setAiModel] = useState(() => localStorage.getItem('ai_default_model') ?? 'gpt4o_mini')
-  const [aiMode, setAiMode] = useState(() => localStorage.getItem('ai_default_mode') ?? 'single')
+  const [aiModel, setAiModel] = useState(() => {
+    const v = localStorage.getItem('ai_default_model')
+    return v === 'gpt4o_mini' || v === 'haiku' ? v : 'gpt4o_mini'
+  })
+  const [aiMode, setAiMode] = useState(() => {
+    const v = localStorage.getItem('ai_default_mode')
+    return v === 'single' || v === 'compare' ? v : 'single'
+  })
   const [tokenUsage, setTokenUsage] = useState<number>(0)
   const [tokenLoading, setTokenLoading] = useState(true)
   const [clearing, setClearing] = useState(false)
@@ -102,19 +108,17 @@ export default function Settings() {
   const loadTokenUsage = useCallback(async () => {
     setTokenLoading(true)
     try {
-      const rows = await get<Array<{ created_at: string; total_tokens: number }>>('/ai/conversations')
       const now = new Date()
-      const year = now.getFullYear()
-      const month = now.getMonth()
-      const total = rows.reduce((sum, r) => {
-        // SQLite datetime('now') returns UTC without timezone suffix
-        const d = new Date(r.created_at + 'Z')
-        if (d.getFullYear() === year && d.getMonth() === month) {
-          return sum + (r.total_tokens ?? 0)
-        }
-        return sum
-      }, 0)
-      setTokenUsage(total)
+      const y = now.getUTCFullYear()
+      const m = now.getUTCMonth()
+      const from = `${y}-${String(m + 1).padStart(2, '0')}-01`
+      const toYear = m === 11 ? y + 1 : y
+      const toMonth = m === 11 ? 0 : m + 1
+      const to = `${toYear}-${String(toMonth + 1).padStart(2, '0')}-01`
+      const { total_tokens } = await get<{ total_tokens: number }>(
+        `/ai/token-usage?from=${from}&to=${to}`,
+      )
+      setTokenUsage(total_tokens)
     } catch {
       setTokenUsage(0)
     } finally {
@@ -616,7 +620,7 @@ export default function Settings() {
                 type="button"
                 disabled={clearing}
                 onClick={async () => {
-                  if (!confirm('Delete all AI conversation history? This cannot be undone.')) return
+                  if (!window.confirm('Delete all AI conversation history? This cannot be undone.')) return
                   setClearing(true)
                   try {
                     await del('/ai/conversations')
