@@ -1,4 +1,13 @@
-import 'dotenv/config'
+// Load .env file if present (for OPENAI_API_KEY etc.) — uses Node built-in, no extra package needed
+try {
+  process.loadEnvFile()
+} catch (err: unknown) {
+  // ENOENT = no .env file, which is fine (AI features just won't have keys)
+  if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code !== 'ENOENT') {
+    console.warn('Warning: failed to load .env file:', err.message)
+  }
+}
+
 import express from 'express'
 import cors from 'cors'
 import './db' // initialise DB and run migrations on startup
