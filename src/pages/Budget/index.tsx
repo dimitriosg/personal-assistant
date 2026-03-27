@@ -224,6 +224,9 @@ export default function Budget() {
       // logging in budget_moves. A separate /budget/assign call must NOT be made —
       // doing so would write the absolute value before move adds the delta again,
       // causing a double-write (e.g. +100 from 0 → assign sets 100, move adds 100 → 200).
+      // Zero-delta moves are already excluded by the early-return above (|delta| < 0.01).
+      // This call is now the sole write path, so failure IS critical — it propagates
+      // to the catch block which reverts the optimistic update and shows an error.
       const movePayload = delta > 0
         ? { month: m, fromCategoryId: null, toCategoryId: categoryId, amount: +delta.toFixed(2) }
         : { month: m, fromCategoryId: categoryId, toCategoryId: null, amount: +(-delta).toFixed(2) }
