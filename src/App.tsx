@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Setup from './pages/setup'
 import Layout from './components/Layout'
 import ErrorBoundary from './components/ErrorBoundary'
+import { ToastProvider } from './components/ui/Toast'
 import Budget from './pages/Budget'
 import Dashboard from './pages/Dashboard'
 import Expenses from './pages/Expenses'
@@ -61,7 +62,9 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppRoutes />
+      <ToastProvider>
+        <AppRoutes />
+      </ToastProvider>
     </BrowserRouter>
   )
 }

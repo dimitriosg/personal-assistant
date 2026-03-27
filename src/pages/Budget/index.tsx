@@ -1,16 +1,23 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { get, post, patch, put } from '../../lib/api'
 import type { BudgetData, BudgetCategory, BudgetGroup, SummaryData } from './types'
 import MonthSelector from './MonthSelector'
 import CollapsibleGroup from './CollapsibleGroup'
 import MonthlySummary from './MonthlySummary'
 import MoveMoneyModal from './MoveMoneyModal'
+import RecentMovesPanel, { type BudgetMove } from './RecentMovesPanel'
 import FilterChips, { type BudgetFilter } from '../../components/budget/FilterChips'
+import { useToast } from '../../hooks/useToast'
 
 function currentMonth(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
+
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
 
 export default function Budget() {
   const [month, setMonth] = useState(currentMonth)
@@ -22,6 +29,19 @@ export default function Budget() {
   const [filter, setFilter] = useState<BudgetFilter>('all')
   const [openPickerId, setOpenPickerId] = useState<number | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [showRecentMoves, setShowRecentMoves] = useState(false)
+  const [undoneStack, setUndoneStack] = useState<BudgetMove[]>([])
+  const [lastMoves, setLastMoves] = useState<BudgetMove[]>([])
+  const [undoing, setUndoing] = useState(false)
+  const [redoing, setRedoing] = useState(false)
+  const { showToast } = useToast()
+
+  // Keep a ref to budget so async callbacks can read current value without deps
+  const budgetRef = useRef<BudgetData | null>(null)
+  budgetRef.current = budget
+
+  const [yr, mo] = month.split('-').map(Number)
+  const monthLabel = `${MONTHS[mo - 1]} ${yr}`
 
   const filteredGroups: BudgetGroup[] = useMemo(() => {
     if (!budget) return []
@@ -75,26 +95,156 @@ export default function Budget() {
     }
   }, [])
 
+  // Silent background refetch — no loading indicator, used after optimistic updates
+  const silentRefetch = useCallback(async (m: string) => {
+    try {
+      const [b, s] = await Promise.all([
+        get<BudgetData>(`/budget/${m}`),
+        get<SummaryData>(`/summary/${m}`),
+      ])
+      setBudget(b)
+      setSummary(s)
+    } catch {
+      // best-effort, ignore errors on background refetch
+    }
+  }, [])
+
+  const fetchMoves = useCallback(async (m: string) => {
+    // Clear stale moves immediately so undo/redo reflect the correct month
+    setLastMoves([])
+    try {
+      const data = await get<BudgetMove[]>(`/budget/moves?month=${m}`)
+      setLastMoves(data)
+    } catch {
+      // ignore — undo/redo will simply be disabled
+    }
+  }, [])
+
   useEffect(() => {
     fetchData(month)
-  }, [month, fetchData])
+    fetchMoves(month)
+  }, [month, fetchData, fetchMoves])
 
   function handleMonthChange(m: string) {
     setMonth(m)
+    setUndoneStack([])
+  }
+
+  // ── Undo / Redo ─────────────────────────────────────────────────────────────
+
+  const canUndo = lastMoves.some(m => m.undone === 0)
+
+  async function handleUndo() {
+    const move = lastMoves.find(m => m.undone === 0)
+    if (!move) return
+    setUndoing(true)
+    try {
+      await post(`/budget/moves/${move.id}/undo`, {})
+      setUndoneStack(prev => [move, ...prev])
+      showToast({ message: `Move undone: EUR ${move.amount.toFixed(2)} back to ${move.from}`, type: 'info' })
+      await Promise.all([fetchData(month), fetchMoves(month)])
+    } catch (err) {
+      showToast({ message: err instanceof Error ? err.message : 'Failed to undo', type: 'error' })
+    } finally {
+      setUndoing(false)
+    }
+  }
+
+  async function handleRedo() {
+    if (undoneStack.length === 0) return
+    const move = undoneStack[0]
+    setRedoing(true)
+    try {
+      // Re-apply the move: original from→to direction
+      await post('/budget/move', {
+        month,
+        fromCategoryId: move.fromCategoryId,
+        toCategoryId: move.toCategoryId,
+        amount: move.amount,
+      })
+      setUndoneStack(prev => prev.slice(1))
+      showToast({ message: `Move re-applied: EUR ${move.amount.toFixed(2)} to ${move.to}`, type: 'success' })
+      await Promise.all([fetchData(month), fetchMoves(month)])
+    } catch (err) {
+      showToast({ message: err instanceof Error ? err.message : 'Failed to redo', type: 'error' })
+    } finally {
+      setRedoing(false)
+    }
   }
 
   const handleAssign = useCallback(async (categoryId: number, m: string, assigned: number) => {
+    const prevBudget = budgetRef.current
+    if (!prevBudget) return
+
+    // Find old assigned value for computing delta and optimistic update
+    let oldAssigned = 0
+    let catName = ''
+    for (const g of prevBudget.groups) {
+      const cat = g.categories.find(c => c.id === categoryId)
+      if (cat) { oldAssigned = cat.assigned; catName = cat.name; break }
+    }
+    const delta = +(assigned - oldAssigned).toFixed(2)
+    if (Math.abs(delta) < 0.01) return // no-op — less than 1 cent change
+
+    // ── Optimistic update ────────────────────────────────────────────────────
+    setBudget(prev => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        readyToAssign: +(prev.readyToAssign - delta).toFixed(2),
+        groups: prev.groups.map(g => {
+          if (!g.categories.some(c => c.id === categoryId)) return g
+          return {
+            ...g,
+            categories: g.categories.map(c =>
+              c.id === categoryId
+                ? { ...c, assigned, available: +(c.available + delta).toFixed(2) }
+                : c
+            ),
+            totals: {
+              ...g.totals,
+              assigned: +(g.totals.assigned + delta).toFixed(2),
+              available: +(g.totals.available + delta).toFixed(2),
+            },
+          }
+        }),
+      }
+    })
+
     try {
       await post('/budget/assign', { category_id: categoryId, month: m, assigned })
-      await fetchData(m)
+
+      // Log the delta as a budget_move so it appears in Recent Moves and can be undone
+      try {
+        if (Math.abs(delta) >= 0.01) {
+          const movePayload = delta > 0
+            ? { month: m, fromCategoryId: null, toCategoryId: categoryId, amount: +delta.toFixed(2) }
+            : { month: m, fromCategoryId: categoryId, toCategoryId: null, amount: +(-delta).toFixed(2) }
+          await post('/budget/move', movePayload)
+        }
+      } catch {
+        // Move logging is non-critical — assign succeeded, history just won't reflect it
+      }
+
+      showToast({ message: `EUR ${assigned.toFixed(2)} assigned to ${catName}`, type: 'success' })
+      // Silent background refresh — no loading indicator
+      silentRefetch(m)
+      fetchMoves(m)
     } catch (err) {
-      console.error('Failed to assign:', err)
+      // Revert optimistic update
+      setBudget(prevBudget)
+      showToast({ message: err instanceof Error ? err.message : 'Failed to assign', type: 'error' })
     }
-  }, [fetchData])
+  }, [silentRefetch, fetchMoves, showToast])
+
+  const handleRecentMovesDataChange = useCallback(() => {
+    fetchData(month)
+    fetchMoves(month)
+  }, [month, fetchData, fetchMoves])
 
   async function handleMoveComplete() {
     setShowMoveModal(false)
-    await fetchData(month)
+    await Promise.all([fetchData(month), fetchMoves(month)])
   }
 
   const handleSelect = useCallback((id: number, checked: boolean) => {
@@ -173,6 +323,37 @@ export default function Budget() {
           readyToAssign={budget.readyToAssign}
           onMonthChange={handleMonthChange}
         />
+
+        {/* Undo / Redo / Recent Moves toolbar */}
+        <div className="flex items-center gap-2 px-4 py-1.5 border-b border-gray-800 bg-gray-900/40 shrink-0">
+          <button
+            onClick={handleUndo}
+            disabled={!canUndo || undoing}
+            className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors
+              ${canUndo && !undoing
+                ? 'text-gray-300 hover:bg-gray-800 hover:text-gray-100'
+                : 'text-gray-600 opacity-50 cursor-not-allowed'}`}
+          >
+            ↩ Undo
+          </button>
+          <button
+            onClick={handleRedo}
+            disabled={undoneStack.length === 0 || redoing}
+            className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors
+              ${undoneStack.length > 0 && !redoing
+                ? 'text-gray-300 hover:bg-gray-800 hover:text-gray-100'
+                : 'text-gray-600 opacity-50 cursor-not-allowed'}`}
+          >
+            ↪ Redo
+          </button>
+          <button
+            onClick={() => setShowRecentMoves(true)}
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded text-gray-300
+              hover:bg-gray-800 hover:text-gray-100 transition-colors"
+          >
+            ⏱ Recent Moves
+          </button>
+        </div>
 
         {/* Filter chips */}
         {hasCategories && (
@@ -299,6 +480,17 @@ export default function Budget() {
           groups={budget.groups}
           onComplete={handleMoveComplete}
           onClose={() => setShowMoveModal(false)}
+        />
+      )}
+
+      {/* ── Recent Moves Panel ─────────────────────────────────────────────── */}
+      {showRecentMoves && (
+        <RecentMovesPanel
+          month={month}
+          monthLabel={monthLabel}
+          onClose={() => setShowRecentMoves(false)}
+          onDataChange={handleRecentMovesDataChange}
+          showToast={showToast}
         />
       )}
     </div>

@@ -7,6 +7,24 @@ import AvailableBadge from '../../components/budget/AvailableBadge'
 import EmojiPicker from '../../components/budget/EmojiPicker'
 import { patch } from '../../lib/api'
 
+function resolveExpression(input: string, current: number): number {
+  const s = input.trim()
+  if (s.startsWith('+')) {
+    const n = parseFloat(s.slice(1))
+    return isNaN(n) ? current : current + n
+  }
+  if (s.startsWith('-')) {
+    const n = parseFloat(s.slice(1))
+    return isNaN(n) ? current : current - n
+  }
+  if (s.startsWith('=')) {
+    const n = parseFloat(s.slice(1))
+    return isNaN(n) ? current : n
+  }
+  const n = parseFloat(s)
+  return isNaN(n) ? current : n
+}
+
 interface Props {
   category: BudgetCategory
   month: string
@@ -37,11 +55,18 @@ export default memo(function CategoryRow({ category, month, onAssign, openPicker
     setEditing(true)
   }
 
+  // Clicking anywhere on the row enters edit mode (YNAB-style), unless already
+  // editing or the emoji picker is open. Specific cells stop propagation below.
+  function handleRowClick() {
+    if (editing || isPickerOpen) return
+    startEdit()
+  }
+
   function commitEdit() {
     setEditing(false)
-    const val = parseFloat(editValue)
-    if (!isNaN(val) && val !== category.assigned) {
-      onAssign(category.id, month, val)
+    const resolved = resolveExpression(editValue, category.assigned)
+    if (!isNaN(resolved) && resolved !== category.assigned) {
+      onAssign(category.id, month, resolved)
     }
   }
 
@@ -92,11 +117,14 @@ export default memo(function CategoryRow({ category, month, onAssign, openPicker
   )
 
   return (
-    <div className="group grid grid-cols-[20px_1fr_80px_80px_80px] sm:grid-cols-[20px_1fr_100px_100px_100px] gap-1 items-center px-3 sm:px-4 py-1.5
-      hover:bg-gray-800/40 transition-colors text-sm border-b border-gray-800/40 last:border-0">
+    <div
+      className="group grid grid-cols-[20px_1fr_80px_80px_80px] sm:grid-cols-[20px_1fr_100px_100px_100px] gap-1 items-center px-3 sm:px-4 py-1.5
+        hover:bg-gray-800/40 transition-colors text-sm border-b border-gray-800/40 last:border-0 cursor-pointer"
+      onClick={handleRowClick}
+    >
 
-      {/* Checkbox */}
-      <div className="flex items-center justify-center">
+      {/* Checkbox — stops row-click so checkbox toggle and edit don't conflict */}
+      <div className="flex items-center justify-center" onClick={e => e.stopPropagation()}>
         <input
           type="checkbox"
           checked={selectedIds.has(category.id)}
@@ -153,13 +181,13 @@ export default memo(function CategoryRow({ category, month, onAssign, openPicker
         )}
       </div>
 
-      {/* Assigned — editable */}
-      <div className="text-right">
+      {/* Assigned — editable; stops row-click so the row handler doesn't re-fire */}
+      <div className="text-right" onClick={e => e.stopPropagation()}>
         {editing ? (
           <input
             ref={inputRef}
-            type="number"
-            step="0.01"
+            type="text"
+            inputMode="decimal"
             value={editValue}
             onChange={e => setEditValue(e.target.value)}
             onBlur={commitEdit}
