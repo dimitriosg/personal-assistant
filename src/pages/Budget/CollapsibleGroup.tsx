@@ -7,9 +7,11 @@ interface Props {
   group: BudgetGroup
   month: string
   onAssign: (categoryId: number, month: string, assigned: number) => void
+  openPickerId: number | null
+  setOpenPickerId: (id: number | null) => void
 }
 
-export default function CollapsibleGroup({ group, month, onAssign }: Props) {
+export default function CollapsibleGroup({ group, month, onAssign, openPickerId, setOpenPickerId }: Props) {
   const [collapsed, setCollapsed] = useState(group.is_collapsed)
 
   return (
@@ -58,6 +60,8 @@ export default function CollapsibleGroup({ group, month, onAssign }: Props) {
               category={cat}
               month={month}
               onAssign={onAssign}
+              openPickerId={openPickerId}
+              setOpenPickerId={setOpenPickerId}
             />
           ))}
         </div>

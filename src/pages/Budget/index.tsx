@@ -20,6 +20,7 @@ export default function Budget() {
   const [error, setError] = useState<string | null>(null)
   const [showMoveModal, setShowMoveModal] = useState(false)
   const [filter, setFilter] = useState<BudgetFilter>('all')
+  const [openPickerId, setOpenPickerId] = useState<number | null>(null)
 
   const filteredGroups: BudgetGroup[] = useMemo(() => {
     if (!budget) return []
@@ -165,6 +166,8 @@ export default function Budget() {
               group={group}
               month={month}
               onAssign={handleAssign}
+              openPickerId={openPickerId}
+              setOpenPickerId={setOpenPickerId}
             />
           ))}
 
