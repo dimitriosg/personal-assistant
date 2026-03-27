@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, memo } from 'react'
+import { useState, useEffect, memo } from 'react'
 import type { BudgetCategory } from './types'
 import AmountCell from './AmountCell'
 import StatusBadge, { deriveStatus } from '../../components/StatusBadge'
@@ -7,28 +7,9 @@ import AvailableBadge from '../../components/budget/AvailableBadge'
 import EmojiPicker from '../../components/budget/EmojiPicker'
 import { patch } from '../../lib/api'
 
-function resolveExpression(input: string, current: number): number {
-  const s = input.trim()
-  if (s.startsWith('+')) {
-    const n = parseFloat(s.slice(1))
-    return isNaN(n) ? current : current + n
-  }
-  if (s.startsWith('-')) {
-    const n = parseFloat(s.slice(1))
-    return isNaN(n) ? current : current - n
-  }
-  if (s.startsWith('=')) {
-    const n = parseFloat(s.slice(1))
-    return isNaN(n) ? current : n
-  }
-  const n = parseFloat(s)
-  return isNaN(n) ? current : n
-}
-
 interface Props {
   category: BudgetCategory
-  month: string
-  onAssign: (categoryId: number, month: string, assigned: number) => void
+  onRowClick: (categoryId: number) => void
   /** ID of the category whose picker is currently open (null = none). */
   openPickerId: number | null
   /** Setter to open/close any picker — shared across all rows. */
@@ -37,43 +18,8 @@ interface Props {
   onSelect: (id: number, checked: boolean) => void
 }
 
-export default memo(function CategoryRow({ category, month, onAssign, openPickerId, setOpenPickerId, selectedIds, onSelect }: Props) {
-  const [editing, setEditing] = useState(false)
-  const [editValue, setEditValue] = useState('')
+export default memo(function CategoryRow({ category, onRowClick, openPickerId, setOpenPickerId, selectedIds, onSelect }: Props) {
   const [localEmoji, setLocalEmoji] = useState<string | null>(category.emoji)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (editing && inputRef.current) {
-      inputRef.current.focus()
-      inputRef.current.select()
-    }
-  }, [editing])
-
-  function startEdit() {
-    setEditValue(category.assigned === 0 ? '' : category.assigned.toFixed(2))
-    setEditing(true)
-  }
-
-  // Clicking anywhere on the row enters edit mode (YNAB-style), unless already
-  // editing or the emoji picker is open. Specific cells stop propagation below.
-  function handleRowClick() {
-    if (editing || isPickerOpen) return
-    startEdit()
-  }
-
-  function commitEdit() {
-    setEditing(false)
-    const resolved = resolveExpression(editValue, category.assigned)
-    if (!isNaN(resolved) && resolved !== category.assigned) {
-      onAssign(category.id, month, resolved)
-    }
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter') commitEdit()
-    if (e.key === 'Escape') setEditing(false)
-  }
 
   // Keep localEmoji in sync if the parent re-fetches and the value changes
   useEffect(() => {
@@ -120,7 +66,7 @@ export default memo(function CategoryRow({ category, month, onAssign, openPicker
     <div
       className="group grid grid-cols-[20px_1fr_80px_80px_80px] sm:grid-cols-[20px_1fr_100px_100px_100px] gap-1 items-center px-3 sm:px-4 py-1.5
         hover:bg-gray-800/40 transition-colors text-sm border-b border-gray-800/40 last:border-0 cursor-pointer"
-      onClick={handleRowClick}
+      onClick={() => { if (!isPickerOpen) onRowClick(category.id) }}
     >
 
       {/* Checkbox — stops row-click so checkbox toggle and edit don't conflict */}
@@ -181,30 +127,16 @@ export default memo(function CategoryRow({ category, month, onAssign, openPicker
         )}
       </div>
 
-      {/* Assigned — editable; stops row-click so the row handler doesn't re-fire */}
+      {/* Assigned — click opens Inspector, stops propagation to avoid double-trigger */}
       <div className="text-right" onClick={e => e.stopPropagation()}>
-        {editing ? (
-          <input
-            ref={inputRef}
-            type="text"
-            inputMode="decimal"
-            value={editValue}
-            onChange={e => setEditValue(e.target.value)}
-            onBlur={commitEdit}
-            onKeyDown={handleKeyDown}
-            className="w-full bg-gray-800 border border-indigo-500 rounded px-1.5 py-0.5
-              text-right text-sm text-gray-100 outline-none tabular-nums"
-          />
-        ) : (
-          <button
-            onClick={startEdit}
-            className="w-full text-right tabular-nums text-gray-300 hover:text-indigo-400
-              hover:bg-indigo-500/10 rounded px-1.5 py-0.5 transition-colors cursor-text"
-            title="Click to edit assigned amount"
-          >
-            <AmountCell value={category.assigned} />
-          </button>
-        )}
+        <button
+          onClick={() => onRowClick(category.id)}
+          className="w-full text-right tabular-nums text-gray-300 hover:text-indigo-400
+            hover:bg-indigo-500/10 rounded px-1.5 py-0.5 transition-colors cursor-pointer"
+          title="Click to inspect and assign"
+        >
+          <AmountCell value={category.assigned} />
+        </button>
       </div>
 
       {/* Activity */}

@@ -5,8 +5,7 @@ import AmountCell from './AmountCell'
 
 interface Props {
   group: BudgetGroup
-  month: string
-  onAssign: (categoryId: number, month: string, assigned: number) => void
+  onRowClick: (categoryId: number) => void
   openPickerId: number | null
   setOpenPickerId: (id: number | null) => void
   selectedIds: Set<number>
@@ -14,7 +13,7 @@ interface Props {
   onSelectGroup: (groupId: number, checked: boolean) => void
 }
 
-export default function CollapsibleGroup({ group, month, onAssign, openPickerId, setOpenPickerId, selectedIds, onSelect, onSelectGroup }: Props) {
+export default function CollapsibleGroup({ group, onRowClick, openPickerId, setOpenPickerId, selectedIds, onSelect, onSelectGroup }: Props) {
   const [collapsed, setCollapsed] = useState(group.is_collapsed)
 
   const groupCategoryIds = group.categories.map(c => c.id)
@@ -91,8 +90,7 @@ export default function CollapsibleGroup({ group, month, onAssign, openPickerId,
             <CategoryRow
               key={cat.id}
               category={cat}
-              month={month}
-              onAssign={onAssign}
+              onRowClick={onRowClick}
               openPickerId={openPickerId}
               setOpenPickerId={setOpenPickerId}
               selectedIds={selectedIds}

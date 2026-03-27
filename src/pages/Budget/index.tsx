@@ -4,6 +4,7 @@ import type { BudgetData, BudgetCategory, BudgetGroup, SummaryData } from './typ
 import MonthSelector from './MonthSelector'
 import CollapsibleGroup from './CollapsibleGroup'
 import MonthlySummary from './MonthlySummary'
+import CategoryInspector from './CategoryInspector'
 import MoveMoneyModal from './MoveMoneyModal'
 import RecentMovesPanel, { type BudgetMove } from './RecentMovesPanel'
 import FilterChips, { type BudgetFilter } from '../../components/budget/FilterChips'
@@ -34,6 +35,7 @@ export default function Budget() {
   const [lastMoves, setLastMoves] = useState<BudgetMove[]>([])
   const [undoing, setUndoing] = useState(false)
   const [redoing, setRedoing] = useState(false)
+  const [inspectedCategoryId, setInspectedCategoryId] = useState<number | null>(null)
   const { showToast } = useToast()
 
   // Keep a ref to budget so async callbacks can read current value without deps
@@ -128,7 +130,13 @@ export default function Budget() {
   function handleMonthChange(m: string) {
     setMonth(m)
     setUndoneStack([])
+    setInspectedCategoryId(null)
   }
+
+  // ── Row click → Inspector ────────────────────────────────────────────────────
+  const handleRowClick = useCallback((categoryId: number) => {
+    setInspectedCategoryId(prev => prev === categoryId ? null : categoryId)
+  }, [])
 
   // ── Undo / Redo ─────────────────────────────────────────────────────────────
 
@@ -420,8 +428,7 @@ export default function Budget() {
             <CollapsibleGroup
               key={group.id}
               group={group}
-              month={month}
-              onAssign={handleAssign}
+              onRowClick={handleRowClick}
               openPickerId={openPickerId}
               setOpenPickerId={setOpenPickerId}
               selectedIds={selectedIds}
@@ -459,12 +466,26 @@ export default function Budget() {
         </div>
       </div>
 
-      {/* ── Right sidebar: Monthly Summary (desktop) ──────────────────────── */}
-      {summary && (
-        <aside className="hidden lg:block w-[260px] shrink-0 border-l border-gray-800 bg-gray-900/40 p-4 overflow-y-auto">
-          <MonthlySummary data={summary} />
-        </aside>
-      )}
+      {/* ── Right sidebar: Category Inspector OR Monthly Summary (desktop) ─── */}
+      {(() => {
+        const inspected = inspectedCategoryId !== null
+          ? budget.groups.flatMap(g => g.categories).find(c => c.id === inspectedCategoryId)
+          : undefined
+        return inspected
+          ? (
+            <CategoryInspector
+              category={inspected}
+              month={month}
+              onClose={() => setInspectedCategoryId(null)}
+              onAssign={handleAssign}
+            />
+          )
+          : summary && (
+            <aside className="hidden lg:block w-[260px] shrink-0 border-l border-gray-800 bg-gray-900/40 p-4 overflow-y-auto">
+              <MonthlySummary data={summary} />
+            </aside>
+          )
+      })()}
 
       {/* ── Right sidebar: Monthly Summary (mobile — below budget) ─────── */}
       {summary && (
