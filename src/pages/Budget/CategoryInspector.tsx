@@ -21,9 +21,10 @@ interface Props {
   month: string
   onClose: () => void
   onAssign: (categoryId: number, month: string, assigned: number) => void
+  onOpenMoveModal: (fromId: number) => void
 }
 
-export default function CategoryInspector({ category, month, onClose, onAssign }: Props) {
+export default function CategoryInspector({ category, month, onClose, onAssign, onOpenMoveModal }: Props) {
   const navigate = useNavigate()
   const [quickAssign, setQuickAssign] = useState('')
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -149,6 +150,13 @@ export default function CategoryInspector({ category, month, onClose, onAssign }
             </button>
           </div>
           <p className="text-[10px] text-gray-600 mt-1">Supports expressions: +20  -10  =300</p>
+          <button
+            onClick={() => onOpenMoveModal(category.id)}
+            className="mt-2 w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm
+              font-medium py-1.5 rounded transition-colors text-center"
+          >
+            ↕ Move Money from {category.name}
+          </button>
         </div>
 
         {/* Recent Transactions */}
