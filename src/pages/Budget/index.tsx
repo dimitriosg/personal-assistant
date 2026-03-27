@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { get, post } from '../../lib/api'
+import { get, post, patch, put } from '../../lib/api'
 import type { BudgetData, BudgetCategory, BudgetGroup, SummaryData } from './types'
 import MonthSelector from './MonthSelector'
 import CollapsibleGroup from './CollapsibleGroup'
@@ -21,6 +21,7 @@ export default function Budget() {
   const [showMoveModal, setShowMoveModal] = useState(false)
   const [filter, setFilter] = useState<BudgetFilter>('all')
   const [openPickerId, setOpenPickerId] = useState<number | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
 
   const filteredGroups: BudgetGroup[] = useMemo(() => {
     if (!budget) return []
@@ -96,6 +97,48 @@ export default function Budget() {
     await fetchData(month)
   }
 
+  const handleSelect = useCallback((id: number, checked: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }, [])
+
+  const handleSelectGroup = useCallback((groupId: number, checked: boolean) => {
+    const group = filteredGroups.find(g => g.id === groupId)
+    if (!group) return
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      group.categories.forEach(c => {
+        if (checked) next.add(c.id)
+        else next.delete(c.id)
+      })
+      return next
+    })
+  }, [filteredGroups])
+
+  async function handleBulkSnooze() {
+    try {
+      await Promise.all(Array.from(selectedIds).map(id => patch(`/categories/${id}/snooze`, { snoozed: true })))
+      await fetchData(month)
+      setSelectedIds(new Set())
+    } catch (err) {
+      console.error('Failed to snooze categories:', err)
+    }
+  }
+
+  async function handleBulkHide() {
+    try {
+      await Promise.all(Array.from(selectedIds).map(id => put(`/categories/${id}`, { hidden: true })))
+      await fetchData(month)
+      setSelectedIds(new Set())
+    } catch (err) {
+      console.error('Failed to hide categories:', err)
+    }
+  }
+
   // ── Loading state ──────────────────────────────────────────────────────────
   if (loading && !budget) {
     return (
@@ -136,9 +179,41 @@ export default function Budget() {
           <FilterChips active={filter} onChange={setFilter} />
         )}
 
+        {/* Bulk action bar */}
+        {selectedIds.size > 0 && (
+          <div className="bg-[#2a2a4a] border border-[#3a3a5a] rounded-lg px-4 py-2 flex items-center gap-4 text-sm mb-2 mx-3 sm:mx-4">
+            <span className="text-gray-300">{selectedIds.size} selected</span>
+            <button
+              onClick={() => window.alert('Move Money coming in Step 12')}
+              className="text-indigo-400 hover:text-indigo-300 transition-colors"
+            >
+              Move Money
+            </button>
+            <button
+              onClick={handleBulkSnooze}
+              className="text-indigo-400 hover:text-indigo-300 transition-colors"
+            >
+              Snooze
+            </button>
+            <button
+              onClick={handleBulkHide}
+              className="text-indigo-400 hover:text-indigo-300 transition-colors"
+            >
+              Hide
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="text-gray-400 hover:text-gray-300 transition-colors"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
         {/* Column headers */}
-        <div className="grid grid-cols-[1fr_80px_80px_80px] sm:grid-cols-[1fr_100px_100px_100px] gap-1 px-3 sm:px-4 py-2
+        <div className="grid grid-cols-[20px_1fr_80px_80px_80px] sm:grid-cols-[20px_1fr_100px_100px_100px] gap-1 px-3 sm:px-4 py-2
           border-b border-gray-800 bg-gray-900/40 text-xs text-gray-500 uppercase tracking-wider font-medium">
+          <div></div>
           <div>Category</div>
           <div className="text-right"><span className="hidden sm:inline">Assigned</span><span className="sm:hidden">Asgn</span></div>
           <div className="text-right"><span className="hidden sm:inline">Activity</span><span className="sm:hidden">Act</span></div>
@@ -168,6 +243,9 @@ export default function Budget() {
               onAssign={handleAssign}
               openPickerId={openPickerId}
               setOpenPickerId={setOpenPickerId}
+              selectedIds={selectedIds}
+              onSelect={handleSelect}
+              onSelectGroup={handleSelectGroup}
             />
           ))}
 
