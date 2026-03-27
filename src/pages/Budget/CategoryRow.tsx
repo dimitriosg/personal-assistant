@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, memo } from 'react'
 import type { BudgetCategory } from './types'
 import AmountCell from './AmountCell'
 import StatusBadge, { deriveStatus } from '../../components/StatusBadge'
-import TargetProgressBar from '../../components/TargetProgressBar'
+import CategoryProgressBar from '../../components/budget/CategoryProgressBar'
 
 interface Props {
   category: BudgetCategory
@@ -74,11 +74,10 @@ export default memo(function CategoryRow({ category, month, onAssign }: Props) {
         </div>
         {/* Target progress bar (shown only when a target exists) */}
         {target && (
-          <TargetProgressBar
+          <CategoryProgressBar
             assigned={category.assigned}
             targetAmount={target.target_amount}
-            targetType={target.target_type}
-            targetDate={target.target_date}
+            available={category.available}
           />
         )}
       </div>
