@@ -1,10 +1,11 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { get, post } from '../../lib/api'
-import type { BudgetData, SummaryData } from './types'
+import type { BudgetData, BudgetCategory, BudgetGroup, SummaryData } from './types'
 import MonthSelector from './MonthSelector'
 import CollapsibleGroup from './CollapsibleGroup'
 import MonthlySummary from './MonthlySummary'
 import MoveMoneyModal from './MoveMoneyModal'
+import FilterChips, { type BudgetFilter } from '../../components/budget/FilterChips'
 
 function currentMonth(): string {
   const d = new Date()
@@ -18,6 +19,42 @@ export default function Budget() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showMoveModal, setShowMoveModal] = useState(false)
+  const [filter, setFilter] = useState<BudgetFilter>('all')
+
+  const filteredGroups: BudgetGroup[] = useMemo(() => {
+    if (!budget) return []
+    if (filter === 'all') return budget.groups
+
+    function matchesFilter(cat: BudgetCategory): boolean {
+      switch (filter) {
+        case 'snoozed':
+          return cat.snoozed === 1
+        case 'underfunded':
+          return cat.target !== null && cat.available > 0 && cat.available < cat.target.target_amount
+        case 'overfunded':
+          return cat.target !== null && cat.available > cat.target.target_amount
+        case 'money_available':
+          return cat.available > 0
+        default:
+          return true
+      }
+    }
+
+    return budget.groups
+      .map(group => {
+        const visibleCategories = group.categories.filter(matchesFilter)
+        if (visibleCategories.length === 0) return null
+
+        const totals = {
+          assigned: visibleCategories.reduce((s, c) => s + c.assigned, 0),
+          activity: visibleCategories.reduce((s, c) => s + c.activity, 0),
+          available: visibleCategories.reduce((s, c) => s + c.available, 0),
+        }
+
+        return { ...group, categories: visibleCategories, totals }
+      })
+      .filter((g): g is BudgetGroup => g !== null)
+  }, [budget, filter])
 
   const fetchData = useCallback(async (m: string) => {
     setLoading(true)
@@ -80,6 +117,7 @@ export default function Budget() {
   }
 
   const hasCategories = budget.groups.some(g => g.categories.length > 0)
+  const isFiltered = filter !== 'all'
 
   return (
     <div className="flex flex-col lg:flex-row h-full">
@@ -91,6 +129,11 @@ export default function Budget() {
           readyToAssign={budget.readyToAssign}
           onMonthChange={handleMonthChange}
         />
+
+        {/* Filter chips */}
+        {hasCategories && (
+          <FilterChips active={filter} onChange={setFilter} />
+        )}
 
         {/* Column headers */}
         <div className="grid grid-cols-[1fr_80px_80px_80px] sm:grid-cols-[1fr_100px_100px_100px] gap-1 px-3 sm:px-4 py-2
@@ -116,7 +159,7 @@ export default function Budget() {
             </div>
           )}
 
-          {budget.groups.map(group => (
+          {filteredGroups.map(group => (
             <CollapsibleGroup
               key={group.id}
               group={group}
@@ -124,6 +167,21 @@ export default function Budget() {
               onAssign={handleAssign}
             />
           ))}
+
+          {/* Hidden categories message */}
+          {isFiltered && (
+            <div className="text-center py-4 px-3">
+              <p className="text-gray-500 text-sm">
+                Some categories are hidden by your current view.
+              </p>
+              <button
+                onClick={() => setFilter('all')}
+                className="mt-2 text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
+              >
+                View All
+              </button>
+            </div>
+          )}
 
           {/* Move money button */}
           {hasCategories && (

@@ -19,6 +19,8 @@ export interface BudgetCategory {
   activity: number
   available: number
   target: CategoryTarget | null
+  snoozed: number
+  emoji: string | null
 }
 
 export interface GroupTotals {
