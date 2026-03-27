@@ -13,6 +13,10 @@ interface Props {
   month: string
   onAssign: (categoryId: number, month: string, assigned: number) => void
   onInspect: (categoryId: number) => void
+  /** Called when this row enters inline edit mode. */
+  onEditStart: (categoryId: number) => void
+  /** Called when this row exits inline edit mode (blur or Escape). */
+  onEditEnd: () => void
   /** ID of the category whose picker is currently open (null = none). */
   openPickerId: number | null
   /** Setter to open/close any picker — shared across all rows. */
@@ -21,11 +25,15 @@ interface Props {
   onSelect: (id: number, checked: boolean) => void
 }
 
-export default memo(function CategoryRow({ category, month, onAssign, onInspect, openPickerId, setOpenPickerId, selectedIds, onSelect }: Props) {
+export default memo(function CategoryRow({ category, month, onAssign, onInspect, onEditStart, onEditEnd, openPickerId, setOpenPickerId, selectedIds, onSelect }: Props) {
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
   const [localEmoji, setLocalEmoji] = useState<string | null>(category.emoji)
   const inputRef = useRef<HTMLInputElement>(null)
+  // Tracks the last successfully committed assigned value within this component,
+  // independent of the server-returned category.assigned prop which may be stale
+  // after a silentRefetch that races with an in-flight assign.
+  const localAssigned = useRef(category.assigned)
   // Tracks the assigned value at the moment the row was clicked into edit mode,
   // used to revert on Escape (even after multiple Enter commits in the same session).
   const originalValue = useRef(0)
@@ -39,6 +47,14 @@ export default memo(function CategoryRow({ category, month, onAssign, onInspect,
     }
   }, [editing])
 
+  // Sync localAssigned when the server prop changes, but only while NOT editing
+  // so we pick up external changes (Undo/Redo) without clobbering mid-session expressions.
+  useEffect(() => {
+    if (!editing) {
+      localAssigned.current = category.assigned
+    }
+  }, [category.assigned, editing])
+
   // Keep localEmoji in sync if the parent re-fetches and the value changes
   useEffect(() => {
     setLocalEmoji(category.emoji)
@@ -50,21 +66,26 @@ export default memo(function CategoryRow({ category, month, onAssign, onInspect,
   // editing or the emoji picker is open. Specific cells stop propagation below.
   function handleRowClick() {
     if (editing || isPickerOpen) return
-    originalValue.current = category.assigned
+    // Capture the local (not server) assigned value as the revert target for Escape
+    originalValue.current = localAssigned.current
     committed.current = false
-    setEditValue(category.assigned === 0 ? '' : category.assigned.toFixed(2))
+    setEditValue(localAssigned.current === 0 ? '' : localAssigned.current.toFixed(2))
     setEditing(true)
+    onEditStart(category.id)
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter') {
-      // Resolve expression → absolute value, then stay in editing mode (YNAB-style)
-      const resolved = resolveExpression(editValue, category.assigned)
+      // Resolve expression using localAssigned as base (not the stale server prop)
+      const resolved = resolveExpression(editValue, localAssigned.current)
       if (!isNaN(resolved)) {
         committed.current = true
+        const oldValue = localAssigned.current
+        // Update local ref BEFORE calling onAssign so chained expressions get the right base
+        localAssigned.current = resolved
         // Update input to show resolved absolute value so blur won't re-apply expression
         setEditValue(resolved.toFixed(2))
-        if (resolved !== category.assigned) {
+        if (resolved !== oldValue) {
           onAssign(category.id, month, resolved)
         }
         // Re-select all text after React re-renders, then clear the guard so
@@ -79,9 +100,15 @@ export default memo(function CategoryRow({ category, month, onAssign, onInspect,
       // Mark as handled so the blur that fires when the input is removed from the
       // DOM (due to setEditing(false) below) does not try to commit again.
       committed.current = true
+      const revertTo = originalValue.current
+      const currentLocal = localAssigned.current
+      // Restore local ref to the pre-session value
+      localAssigned.current = revertTo
       setEditing(false)
-      if (originalValue.current !== category.assigned) {
-        onAssign(category.id, month, originalValue.current)
+      onEditEnd()
+      // If intermediate Enters already changed the value, undo them all in one call
+      if (revertTo !== currentLocal) {
+        onAssign(category.id, month, revertTo)
       }
     }
   }
@@ -94,8 +121,11 @@ export default memo(function CategoryRow({ category, month, onAssign, onInspect,
     }
     // Blur without Enter = commit current value and close edit mode
     setEditing(false)
-    const resolved = resolveExpression(editValue, category.assigned)
-    if (!isNaN(resolved) && resolved !== category.assigned) {
+    onEditEnd()
+    const resolved = resolveExpression(editValue, localAssigned.current)
+    if (!isNaN(resolved) && resolved !== localAssigned.current) {
+      // Update local ref BEFORE calling onAssign (consistent with Enter handler)
+      localAssigned.current = resolved
       onAssign(category.id, month, resolved)
     }
   }
