@@ -26,8 +26,10 @@ export default memo(function CategoryRow({ category, month, onAssign, onInspect,
   const [inputValue, setInputValue] = useState('')
   const [localEmoji, setLocalEmoji] = useState<string | null>(category.emoji)
   const inputRef = useRef<HTMLInputElement>(null)
-  // Tracks the last successfully committed assigned value locally, independent of the
-  // server-returned prop so chained expressions always use the correct base.
+  // Displayed value when NOT editing — kept in state so prop updates (silentRefetch,
+  // Undo) trigger a re-render and paint the correct number immediately.
+  const [displayedAssigned, setDisplayedAssigned] = useState(category.assigned)
+  // Expression base — a ref so Enter can update it synchronously without an extra render.
   const localAssigned = useRef(category.assigned)
 
   // Focus + select when edit mode opens
@@ -38,9 +40,11 @@ export default memo(function CategoryRow({ category, month, onAssign, onInspect,
     }
   }, [editing])
 
-  // Sync localAssigned from server prop only while NOT editing (picks up Undo/external changes)
+  // Sync both display state and expression-base ref when the server prop changes,
+  // but only while NOT editing so mid-session expressions aren't clobbered.
   useEffect(() => {
     if (!editing) {
+      setDisplayedAssigned(category.assigned)
       localAssigned.current = category.assigned
     }
   }, [category.assigned, editing])
@@ -65,7 +69,8 @@ export default memo(function CategoryRow({ category, month, onAssign, onInspect,
       const resolved = resolveExpression(inputValue, localAssigned.current)
       if (!isNaN(resolved)) {
         if (resolved !== localAssigned.current) {
-          localAssigned.current = resolved   // update BEFORE calling onAssign
+          localAssigned.current = resolved   // update base BEFORE calling onAssign
+          setDisplayedAssigned(resolved)     // keep display in sync
           onAssign(category.id, month, resolved)
         }
         setInputValue(resolved.toFixed(2))   // show absolute value, ready for next expr
@@ -203,7 +208,7 @@ export default memo(function CategoryRow({ category, month, onAssign, onInspect,
               hover:bg-indigo-500/10 rounded px-1.5 py-0.5 transition-colors cursor-text"
             title="Click to edit assigned amount"
           >
-            <AmountCell value={localAssigned.current} />
+            <AmountCell value={displayedAssigned} />
           </button>
         )}
       </div>
