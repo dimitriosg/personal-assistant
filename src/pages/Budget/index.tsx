@@ -4,6 +4,7 @@ import type { BudgetData, BudgetCategory, BudgetGroup, SummaryData } from './typ
 import MonthSelector from './MonthSelector'
 import CollapsibleGroup from './CollapsibleGroup'
 import MonthlySummary from './MonthlySummary'
+import CategoryInspector from './CategoryInspector'
 import MoveMoneyModal from './MoveMoneyModal'
 import RecentMovesPanel, { type BudgetMove } from './RecentMovesPanel'
 import FilterChips, { type BudgetFilter } from '../../components/budget/FilterChips'
@@ -34,6 +35,7 @@ export default function Budget() {
   const [lastMoves, setLastMoves] = useState<BudgetMove[]>([])
   const [undoing, setUndoing] = useState(false)
   const [redoing, setRedoing] = useState(false)
+  const [inspectedCategoryId, setInspectedCategoryId] = useState<number | null>(null)
   const { showToast } = useToast()
 
   // Keep a ref to budget so async callbacks can read current value without deps
@@ -128,7 +130,13 @@ export default function Budget() {
   function handleMonthChange(m: string) {
     setMonth(m)
     setUndoneStack([])
+    setInspectedCategoryId(null)
   }
+
+  // ── Inspect button → Inspector panel ────────────────────────────────────────
+  const handleInspect = useCallback((categoryId: number) => {
+    setInspectedCategoryId(prev => prev === categoryId ? null : categoryId)
+  }, [])
 
   // ── Undo / Redo ─────────────────────────────────────────────────────────────
 
@@ -212,19 +220,17 @@ export default function Budget() {
     })
 
     try {
-      await post('/budget/assign', { category_id: categoryId, month: m, assigned })
-
-      // Log the delta as a budget_move so it appears in Recent Moves and can be undone
-      try {
-        if (Math.abs(delta) >= 0.01) {
-          const movePayload = delta > 0
-            ? { month: m, fromCategoryId: null, toCategoryId: categoryId, amount: +delta.toFixed(2) }
-            : { month: m, fromCategoryId: categoryId, toCategoryId: null, amount: +(-delta).toFixed(2) }
-          await post('/budget/move', movePayload)
-        }
-      } catch {
-        // Move logging is non-critical — assign succeeded, history just won't reflect it
-      }
+      // POST /budget/move handles both the monthly_budgets update (delta-add) AND
+      // logging in budget_moves. A separate /budget/assign call must NOT be made —
+      // doing so would write the absolute value before move adds the delta again,
+      // causing a double-write (e.g. +100 from 0 → assign sets 100, move adds 100 → 200).
+      // Zero-delta moves are already excluded by the early-return above (|delta| < 0.01).
+      // This call is now the sole write path, so failure IS critical — it propagates
+      // to the catch block which reverts the optimistic update and shows an error.
+      const movePayload = delta > 0
+        ? { month: m, fromCategoryId: null, toCategoryId: categoryId, amount: +delta.toFixed(2) }
+        : { month: m, fromCategoryId: categoryId, toCategoryId: null, amount: +(-delta).toFixed(2) }
+      await post('/budget/move', movePayload)
 
       showToast({ message: `EUR ${assigned.toFixed(2)} assigned to ${catName}`, type: 'success' })
       // Silent background refresh — no loading indicator
@@ -392,13 +398,14 @@ export default function Budget() {
         )}
 
         {/* Column headers */}
-        <div className="grid grid-cols-[20px_1fr_80px_80px_80px] sm:grid-cols-[20px_1fr_100px_100px_100px] gap-1 px-3 sm:px-4 py-2
+        <div className="grid grid-cols-[20px_1fr_80px_80px_80px_24px] sm:grid-cols-[20px_1fr_100px_100px_100px_24px] gap-1 px-3 sm:px-4 py-2
           border-b border-gray-800 bg-gray-900/40 text-xs text-gray-500 uppercase tracking-wider font-medium">
           <div></div>
           <div>Category</div>
           <div className="text-right"><span className="hidden sm:inline">Assigned</span><span className="sm:hidden">Asgn</span></div>
           <div className="text-right"><span className="hidden sm:inline">Activity</span><span className="sm:hidden">Act</span></div>
           <div className="text-right"><span className="hidden sm:inline">Available</span><span className="sm:hidden">Avail</span></div>
+          <div></div>
         </div>
 
         {/* Category groups */}
@@ -422,6 +429,7 @@ export default function Budget() {
               group={group}
               month={month}
               onAssign={handleAssign}
+              onInspect={handleInspect}
               openPickerId={openPickerId}
               setOpenPickerId={setOpenPickerId}
               selectedIds={selectedIds}
@@ -459,12 +467,26 @@ export default function Budget() {
         </div>
       </div>
 
-      {/* ── Right sidebar: Monthly Summary (desktop) ──────────────────────── */}
-      {summary && (
-        <aside className="hidden lg:block w-[260px] shrink-0 border-l border-gray-800 bg-gray-900/40 p-4 overflow-y-auto">
-          <MonthlySummary data={summary} />
-        </aside>
-      )}
+      {/* ── Right sidebar: Category Inspector OR Monthly Summary (desktop) ─── */}
+      {(() => {
+        const inspected = inspectedCategoryId !== null
+          ? budget.groups.flatMap(g => g.categories).find(c => c.id === inspectedCategoryId)
+          : undefined
+        return inspected
+          ? (
+            <CategoryInspector
+              category={inspected}
+              month={month}
+              onClose={() => setInspectedCategoryId(null)}
+              onAssign={handleAssign}
+            />
+          )
+          : summary && (
+            <aside className="hidden lg:block w-[260px] shrink-0 border-l border-gray-800 bg-gray-900/40 p-4 overflow-y-auto">
+              <MonthlySummary data={summary} />
+            </aside>
+          )
+      })()}
 
       {/* ── Right sidebar: Monthly Summary (mobile — below budget) ─────── */}
       {summary && (
