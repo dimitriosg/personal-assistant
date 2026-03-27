@@ -29,6 +29,8 @@ export default function CategoryInspector({ category, month, onClose, onAssign }
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loadingTx, setLoadingTx] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  // Guard against double-submit (Enter key + button click firing simultaneously)
+  const submittingRef = useRef(false)
 
   // Focus the Quick Assign input when Inspector opens
   useEffect(() => {
@@ -46,16 +48,23 @@ export default function CategoryInspector({ category, month, onClose, onAssign }
   }, [category.id, month])
 
   function handleQuickAssignSubmit() {
+    if (submittingRef.current) return
     const trimmed = quickAssign.trim()
     if (!trimmed) return
     const newAmount = resolveExpression(trimmed, category.assigned)
     if (isNaN(newAmount)) return
-    onAssign(category.id, month, newAmount)
+    submittingRef.current = true
     setQuickAssign('')
+    onAssign(category.id, month, newAmount)
+    // Reset the guard after a short delay to allow the async assign to complete
+    setTimeout(() => { submittingRef.current = false }, 500)
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter') handleQuickAssignSubmit()
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleQuickAssignSubmit()
+    }
     if (e.key === 'Escape') onClose()
   }
 

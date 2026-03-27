@@ -5,7 +5,9 @@ import AmountCell from './AmountCell'
 
 interface Props {
   group: BudgetGroup
-  onRowClick: (categoryId: number) => void
+  month: string
+  onAssign: (categoryId: number, month: string, assigned: number) => void
+  onInspect: (categoryId: number) => void
   openPickerId: number | null
   setOpenPickerId: (id: number | null) => void
   selectedIds: Set<number>
@@ -13,7 +15,7 @@ interface Props {
   onSelectGroup: (groupId: number, checked: boolean) => void
 }
 
-export default function CollapsibleGroup({ group, onRowClick, openPickerId, setOpenPickerId, selectedIds, onSelect, onSelectGroup }: Props) {
+export default function CollapsibleGroup({ group, month, onAssign, onInspect, openPickerId, setOpenPickerId, selectedIds, onSelect, onSelectGroup }: Props) {
   const [collapsed, setCollapsed] = useState(group.is_collapsed)
 
   const groupCategoryIds = group.categories.map(c => c.id)
@@ -33,7 +35,7 @@ export default function CollapsibleGroup({ group, onRowClick, openPickerId, setO
     <div className="mb-1">
       {/* Group header */}
       <div
-        className="group w-full grid grid-cols-[20px_1fr_80px_80px_80px] sm:grid-cols-[20px_1fr_100px_100px_100px] gap-1 items-center px-3 sm:px-4 py-2
+        className="group w-full grid grid-cols-[20px_1fr_80px_80px_80px_24px] sm:grid-cols-[20px_1fr_100px_100px_100px_24px] gap-1 items-center px-3 sm:px-4 py-2
           bg-gray-900/60 hover:bg-gray-800/60 transition-colors border-b border-gray-800
           cursor-pointer"
         onClick={() => setCollapsed(c => !c)}
@@ -81,6 +83,8 @@ export default function CollapsibleGroup({ group, onRowClick, openPickerId, setO
         <div className="text-right">
           <AmountCell value={group.totals.available} variant="available" bold />
         </div>
+        {/* Spacer for the [ℹ] inspect button column */}
+        <div />
       </div>
 
       {/* Category rows */}
@@ -90,7 +94,9 @@ export default function CollapsibleGroup({ group, onRowClick, openPickerId, setO
             <CategoryRow
               key={cat.id}
               category={cat}
-              onRowClick={onRowClick}
+              month={month}
+              onAssign={onAssign}
+              onInspect={onInspect}
               openPickerId={openPickerId}
               setOpenPickerId={setOpenPickerId}
               selectedIds={selectedIds}

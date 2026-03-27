@@ -133,8 +133,8 @@ export default function Budget() {
     setInspectedCategoryId(null)
   }
 
-  // ── Row click → Inspector ────────────────────────────────────────────────────
-  const handleRowClick = useCallback((categoryId: number) => {
+  // ── Inspect button → Inspector panel ────────────────────────────────────────
+  const handleInspect = useCallback((categoryId: number) => {
     setInspectedCategoryId(prev => prev === categoryId ? null : categoryId)
   }, [])
 
@@ -400,13 +400,14 @@ export default function Budget() {
         )}
 
         {/* Column headers */}
-        <div className="grid grid-cols-[20px_1fr_80px_80px_80px] sm:grid-cols-[20px_1fr_100px_100px_100px] gap-1 px-3 sm:px-4 py-2
+        <div className="grid grid-cols-[20px_1fr_80px_80px_80px_24px] sm:grid-cols-[20px_1fr_100px_100px_100px_24px] gap-1 px-3 sm:px-4 py-2
           border-b border-gray-800 bg-gray-900/40 text-xs text-gray-500 uppercase tracking-wider font-medium">
           <div></div>
           <div>Category</div>
           <div className="text-right"><span className="hidden sm:inline">Assigned</span><span className="sm:hidden">Asgn</span></div>
           <div className="text-right"><span className="hidden sm:inline">Activity</span><span className="sm:hidden">Act</span></div>
           <div className="text-right"><span className="hidden sm:inline">Available</span><span className="sm:hidden">Avail</span></div>
+          <div></div>
         </div>
 
         {/* Category groups */}
@@ -428,7 +429,9 @@ export default function Budget() {
             <CollapsibleGroup
               key={group.id}
               group={group}
-              onRowClick={handleRowClick}
+              month={month}
+              onAssign={handleAssign}
+              onInspect={handleInspect}
               openPickerId={openPickerId}
               setOpenPickerId={setOpenPickerId}
               selectedIds={selectedIds}
