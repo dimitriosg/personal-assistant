@@ -187,8 +187,9 @@ export default memo(function CategoryRow({ category, month, onAssign, onInspect,
         )}
       </div>
 
-      {/* Assigned — editable; stops row-click so the row handler doesn't re-fire */}
-      <div className="text-right" onClick={e => e.stopPropagation()}>
+      {/* Assigned — editable; stop propagation only while editing so input clicks
+           don't re-fire handleRowClick; in static mode let clicks bubble to the row */}
+      <div className="text-right" onClick={editing ? e => e.stopPropagation() : undefined}>
         {editing ? (
           <input
             ref={inputRef}
