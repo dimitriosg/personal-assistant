@@ -135,6 +135,30 @@ export default function Budget() {
     setInspectedCategoryId(null)
   }
 
+  // ── "M" shortcut — open Move Money from inspected category ──────────────────
+  useEffect(() => {
+    if (inspectedCategoryId === null) return
+
+    function onKeyDown(e: KeyboardEvent) {
+      // Ignore when typing inside an input/textarea/select or contenteditable
+      const target = e.target as HTMLElement
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable ||
+        target.getAttribute('role') === 'textbox'
+      ) return
+      if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault()
+        openMoveModal(inspectedCategoryId)
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [inspectedCategoryId])
+
   // ── Inspect button → Inspector panel ────────────────────────────────────────
   const handleInspect = useCallback((categoryId: number) => {
     setInspectedCategoryId(prev => prev === categoryId ? null : categoryId)
@@ -256,8 +280,55 @@ export default function Budget() {
     setShowMoveModal(true)
   }
 
-  async function handleMoveComplete() {
+  async function handleMoveComplete(fromId: number | null, toId: number | null, amount: number) {
+    // Optimistic update — immediately adjust available balances before background refresh
+    setBudget(prev => {
+      if (!prev) return prev
+
+      function updateCategory(
+        groups: BudgetGroup[],
+        id: number,
+        delta: number,
+      ): BudgetGroup[] {
+        return groups.map(g => {
+          if (!g.categories.some(c => c.id === id)) return g
+          return {
+            ...g,
+            categories: g.categories.map(c =>
+              c.id === id
+                ? { ...c, available: Math.round((c.available + delta) * 100) / 100 }
+                : c
+            ),
+            totals: {
+              ...g.totals,
+              available: Math.round((g.totals.available + delta) * 100) / 100,
+            },
+          }
+        })
+      }
+
+      let groups = prev.groups
+      let rta = prev.readyToAssign
+
+      // Subtract from source
+      if (fromId === null) {
+        rta = Math.round((rta - amount) * 100) / 100
+      } else {
+        groups = updateCategory(groups, fromId, -amount)
+      }
+
+      // Add to destination
+      if (toId === null) {
+        rta = Math.round((rta + amount) * 100) / 100
+      } else {
+        groups = updateCategory(groups, toId, amount)
+      }
+
+      return { ...prev, readyToAssign: rta, groups }
+    })
+
     setShowMoveModal(false)
+    setSelectedIds(new Set())
     await Promise.all([fetchData(month), fetchMoves(month)])
   }
 
@@ -491,6 +562,7 @@ export default function Budget() {
               month={month}
               onClose={() => setInspectedCategoryId(null)}
               onAssign={handleAssign}
+              onOpenMoveModal={(fromId) => openMoveModal(fromId)}
             />
           )
           : summary && (

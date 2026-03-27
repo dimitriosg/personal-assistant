@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import type { BudgetGroup } from './types'
 import { post } from '../../lib/api'
 import { useToast } from '../../hooks/useToast'
@@ -11,7 +11,7 @@ interface Props {
   initialFromId?: number | null
   /** Pre-selected destination category. undefined = no pre-selection, null = Ready to Assign */
   initialToId?: number | null
-  onComplete: () => void
+  onComplete: (fromId: number | null, toId: number | null, amount: number) => void
   onClose: () => void
 }
 
@@ -47,7 +47,9 @@ export default function MoveMoneyModal({
   const [amountRaw, setAmountRaw] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [shaking, setShaking] = useState(false)
   const { showToast } = useToast()
+  const amountInputRef = useRef<HTMLInputElement>(null)
 
   const fromId = fromSelectVal(fromVal)  // number | null | ''
   const toId = fromSelectVal(toVal)
@@ -100,9 +102,18 @@ export default function MoveMoneyModal({
         message: `Moved EUR ${amt.toFixed(2)} from ${fromName} → ${toName}`,
         type: 'success',
       })
-      onComplete()
+      onComplete(
+        typeof fromId === 'number' ? fromId : null,
+        typeof toId   === 'number' ? toId   : null,
+        amt,
+      )
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to move money')
+      const msg = err instanceof Error ? err.message : 'Failed to move money'
+      setError(msg)
+      showToast({ message: msg, type: 'error' })
+      // Shake the amount input to draw attention
+      setShaking(true)
+      setTimeout(() => setShaking(false), 500)
     } finally {
       setSaving(false)
     }
@@ -189,13 +200,16 @@ export default function MoveMoneyModal({
           <div>
             <label className="block text-xs text-gray-500 mb-1">Amount (EUR)</label>
             <input
+              ref={amountInputRef}
               type="text"
               inputMode="decimal"
               value={amountRaw}
-              onChange={e => setAmountRaw(e.target.value)}
+              onChange={e => { setAmountRaw(e.target.value); setError(null) }}
               placeholder="50.00"
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2
-                text-sm text-gray-200 outline-none focus:border-indigo-500 tabular-nums"
+              className={`w-full bg-gray-800 border rounded-lg px-3 py-2
+                text-sm text-gray-200 outline-none focus:border-indigo-500 tabular-nums
+                ${error ? 'border-red-500' : 'border-gray-700'}
+                ${shaking ? 'animate-shake' : ''}`}
             />
             {fromId !== '' && (
               <div className="text-xs text-gray-600 mt-1">
@@ -229,7 +243,7 @@ export default function MoveMoneyModal({
             </button>
             <button
               type="submit"
-              disabled={saving || !canSubmit}
+              disabled={saving || !canSubmit || error !== null}
               className="px-4 py-1.5 text-sm font-medium bg-indigo-600 hover:bg-indigo-500
                 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
