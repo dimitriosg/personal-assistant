@@ -15,9 +15,11 @@ interface Props {
   openPickerId: number | null
   /** Setter to open/close any picker — shared across all rows. */
   setOpenPickerId: (id: number | null) => void
+  selectedIds: Set<number>
+  onSelect: (id: number, checked: boolean) => void
 }
 
-export default memo(function CategoryRow({ category, month, onAssign, openPickerId, setOpenPickerId }: Props) {
+export default memo(function CategoryRow({ category, month, onAssign, openPickerId, setOpenPickerId, selectedIds, onSelect }: Props) {
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
   const [localEmoji, setLocalEmoji] = useState<string | null>(category.emoji)
@@ -90,8 +92,18 @@ export default memo(function CategoryRow({ category, month, onAssign, openPicker
   )
 
   return (
-    <div className="group grid grid-cols-[1fr_80px_80px_80px] sm:grid-cols-[1fr_100px_100px_100px] gap-1 items-center px-3 sm:px-4 py-1.5
+    <div className="group grid grid-cols-[20px_1fr_80px_80px_80px] sm:grid-cols-[20px_1fr_100px_100px_100px] gap-1 items-center px-3 sm:px-4 py-1.5
       hover:bg-gray-800/40 transition-colors text-sm border-b border-gray-800/40 last:border-0">
+
+      {/* Checkbox */}
+      <div className="flex items-center justify-center">
+        <input
+          type="checkbox"
+          checked={selectedIds.has(category.id)}
+          onChange={e => onSelect(category.id, e.target.checked)}
+          className={`accent-indigo-500 w-4 h-4 cursor-pointer transition-opacity ${selectedIds.has(category.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+        />
+      </div>
 
       {/* Category name + badges + target progress */}
       <div className="min-w-0">
