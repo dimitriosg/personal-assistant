@@ -27,6 +27,8 @@ export default function Budget() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showMoveModal, setShowMoveModal] = useState(false)
+  const [moveMoneyFromId, setMoveMoneyFromId] = useState<number | null | undefined>(undefined)
+  const [moveMoneyToId, setMoveMoneyToId] = useState<number | null | undefined>(undefined)
   const [filter, setFilter] = useState<BudgetFilter>('all')
   const [openPickerId, setOpenPickerId] = useState<number | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
@@ -248,6 +250,12 @@ export default function Budget() {
     fetchMoves(month)
   }, [month, fetchData, fetchMoves])
 
+  function openMoveModal(fromId?: number | null, toId?: number | null) {
+    setMoveMoneyFromId(fromId)
+    setMoveMoneyToId(toId)
+    setShowMoveModal(true)
+  }
+
   async function handleMoveComplete() {
     setShowMoveModal(false)
     await Promise.all([fetchData(month), fetchMoves(month)])
@@ -371,7 +379,11 @@ export default function Budget() {
           <div className="bg-[#2a2a4a] border border-[#3a3a5a] rounded-lg px-4 py-2 flex items-center gap-4 text-sm mb-2 mx-3 sm:mx-4">
             <span className="text-gray-300">{selectedIds.size} selected</span>
             <button
-              onClick={() => window.alert('Move Money coming in Step 12')}
+              onClick={() => {
+                const ids = Array.from(selectedIds)
+                // Single selection: pre-select as source only; user picks dest themselves
+                openMoveModal(ids[0], ids.length > 1 ? ids[ids.length - 1] : undefined)
+              }}
               className="text-indigo-400 hover:text-indigo-300 transition-colors"
             >
               Move Money
@@ -457,7 +469,7 @@ export default function Budget() {
           {hasCategories && (
             <div className="px-4 py-3">
               <button
-                onClick={() => setShowMoveModal(true)}
+                onClick={() => openMoveModal()}
                 className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
               >
                 ↔ Move money between categories
@@ -500,6 +512,9 @@ export default function Budget() {
         <MoveMoneyModal
           month={month}
           groups={budget.groups}
+          readyToAssign={budget.readyToAssign}
+          initialFromId={moveMoneyFromId}
+          initialToId={moveMoneyToId}
           onComplete={handleMoveComplete}
           onClose={() => setShowMoveModal(false)}
         />
