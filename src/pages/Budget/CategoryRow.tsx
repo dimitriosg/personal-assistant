@@ -26,6 +26,11 @@ export default memo(function CategoryRow({ category, month, onAssign, onInspect,
   const [editValue, setEditValue] = useState('')
   const [localEmoji, setLocalEmoji] = useState<string | null>(category.emoji)
   const inputRef = useRef<HTMLInputElement>(null)
+  // Tracks the assigned value at the moment the row was clicked into edit mode,
+  // used to revert on Escape (even after multiple Enter commits in the same session).
+  const originalValue = useRef(0)
+  // Prevents the onBlur handler from re-firing commitEdit after Enter/Escape already handled it.
+  const committed = useRef(false)
 
   useEffect(() => {
     if (editing && inputRef.current) {
@@ -45,21 +50,54 @@ export default memo(function CategoryRow({ category, month, onAssign, onInspect,
   // editing or the emoji picker is open. Specific cells stop propagation below.
   function handleRowClick() {
     if (editing || isPickerOpen) return
+    originalValue.current = category.assigned
+    committed.current = false
     setEditValue(category.assigned === 0 ? '' : category.assigned.toFixed(2))
     setEditing(true)
   }
 
-  function commitEdit() {
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') {
+      // Resolve expression → absolute value, then stay in editing mode (YNAB-style)
+      const resolved = resolveExpression(editValue, category.assigned)
+      if (!isNaN(resolved)) {
+        committed.current = true
+        // Update input to show resolved absolute value so blur won't re-apply expression
+        setEditValue(resolved.toFixed(2))
+        if (resolved !== category.assigned) {
+          onAssign(category.id, month, resolved)
+        }
+        // Re-select all text after React re-renders, then clear the guard so
+        // a subsequent click-away blur commits normally
+        requestAnimationFrame(() => {
+          inputRef.current?.select()
+          committed.current = false
+        })
+      }
+    }
+    if (e.key === 'Escape') {
+      // Mark as handled so the blur that fires when the input is removed from the
+      // DOM (due to setEditing(false) below) does not try to commit again.
+      committed.current = true
+      setEditing(false)
+      if (originalValue.current !== category.assigned) {
+        onAssign(category.id, month, originalValue.current)
+      }
+    }
+  }
+
+  function handleBlur() {
+    // If Enter or Escape already handled this commit, skip
+    if (committed.current) {
+      committed.current = false
+      return
+    }
+    // Blur without Enter = commit current value and close edit mode
     setEditing(false)
     const resolved = resolveExpression(editValue, category.assigned)
     if (!isNaN(resolved) && resolved !== category.assigned) {
       onAssign(category.id, month, resolved)
     }
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter') commitEdit()
-    if (e.key === 'Escape') setEditing(false)
   }
 
   function togglePicker(e: React.MouseEvent) {
@@ -170,7 +208,7 @@ export default memo(function CategoryRow({ category, month, onAssign, onInspect,
             inputMode="decimal"
             value={editValue}
             onChange={e => setEditValue(e.target.value)}
-            onBlur={commitEdit}
+            onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             className="w-full bg-gray-800 border border-indigo-500 rounded px-1.5 py-0.5
               text-right text-sm text-gray-100 outline-none tabular-nums"
