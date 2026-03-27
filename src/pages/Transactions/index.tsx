@@ -213,16 +213,19 @@ export default function Transactions() {
   async function handleDelete(id: number) {
     if (!confirm('Delete this transaction?')) return
 
-    // Optimistic remove
-    const prev = transactions
-    setTransactions(t => t.filter(tx => tx.id !== id))
+    // Optimistic remove — capture snapshot from functional updater
+    let snapshot: Transaction[] = []
+    setTransactions(prev => {
+      snapshot = prev
+      return prev.filter(tx => tx.id !== id)
+    })
 
     try {
       await del(`/transactions/${id}`)
       showToast({ message: 'Transaction deleted', type: 'success' })
       await fetchTransactions()
     } catch (err) {
-      setTransactions(prev) // revert on failure
+      setTransactions(snapshot) // revert on failure
       showToast({ message: err instanceof Error ? err.message : 'Failed to delete', type: 'error' })
     }
   }
@@ -268,10 +271,9 @@ export default function Transactions() {
     else if (inlineField === 'category_id') updated.category_id = inlineValue ? Number(inlineValue) : null
 
     // Optimistic update
-    const fieldKey = inlineField as keyof Transaction
     setTransactions(prev =>
       prev.map(t =>
-        t.id === tx.id ? { ...t, [fieldKey]: updated[inlineField] } : t
+        t.id === tx.id ? { ...t, [inlineField]: updated[inlineField] } : t
       )
     )
 
