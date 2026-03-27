@@ -161,6 +161,11 @@ export default function Budget() {
     }
   }, [fetchData])
 
+  const handleRecentMovesDataChange = useCallback(() => {
+    fetchData(month)
+    fetchMoves(month)
+  }, [month, fetchData, fetchMoves])
+
   async function handleMoveComplete() {
     setShowMoveModal(false)
     await fetchData(month)
@@ -408,7 +413,7 @@ export default function Budget() {
           month={month}
           monthLabel={monthLabel}
           onClose={() => setShowRecentMoves(false)}
-          onDataChange={() => { fetchData(month); fetchMoves(month) }}
+          onDataChange={handleRecentMovesDataChange}
           showToast={showToast}
         />
       )}

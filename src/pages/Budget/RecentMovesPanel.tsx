@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { get, post } from '../../lib/api'
 
 export interface BudgetMove {
@@ -25,7 +25,7 @@ export default function RecentMovesPanel({ month, monthLabel, onClose, onDataCha
   const [loading, setLoading] = useState(true)
   const [undoing, setUndoing] = useState<number | null>(null)
 
-  async function fetchMoves() {
+  const fetchMoves = useCallback(async () => {
     try {
       const data = await get<BudgetMove[]>(`/budget/moves?month=${month}`)
       setMoves(data)
@@ -34,11 +34,11 @@ export default function RecentMovesPanel({ month, monthLabel, onClose, onDataCha
     } finally {
       setLoading(false)
     }
-  }
+  }, [month])
 
   useEffect(() => {
     fetchMoves()
-  }, [month])
+  }, [fetchMoves])
 
   async function handleUndo(move: BudgetMove) {
     setUndoing(move.id)

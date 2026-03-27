@@ -10,9 +10,18 @@ import { useToast } from '../../hooks/useToast'
 
 function resolveExpression(input: string, current: number): number {
   const s = input.trim()
-  if (s.startsWith('+')) return current + parseFloat(s.slice(1))
-  if (s.startsWith('-')) return current - parseFloat(s.slice(1))
-  if (s.startsWith('=')) return parseFloat(s.slice(1))
+  if (s.startsWith('+')) {
+    const n = parseFloat(s.slice(1))
+    return isNaN(n) ? current : current + n
+  }
+  if (s.startsWith('-')) {
+    const n = parseFloat(s.slice(1))
+    return isNaN(n) ? current : current - n
+  }
+  if (s.startsWith('=')) {
+    const n = parseFloat(s.slice(1))
+    return isNaN(n) ? current : n
+  }
   const n = parseFloat(s)
   return isNaN(n) ? current : n
 }
