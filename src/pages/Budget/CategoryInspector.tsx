@@ -182,7 +182,7 @@ export default function CategoryInspector({ category, month, onClose, onAssign, 
             </div>
           )}
           <button
-            onClick={() => navigate(`/transactions?categoryId=${category.id}`)}
+            onClick={() => navigate(`/transactions?category_id=${category.id}`)}
             className="mt-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
           >
             View all transactions →
