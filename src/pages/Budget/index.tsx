@@ -5,12 +5,19 @@ import MonthSelector from './MonthSelector'
 import CollapsibleGroup from './CollapsibleGroup'
 import MonthlySummary from './MonthlySummary'
 import MoveMoneyModal from './MoveMoneyModal'
+import RecentMovesPanel, { type BudgetMove } from './RecentMovesPanel'
 import FilterChips, { type BudgetFilter } from '../../components/budget/FilterChips'
+import { useToast } from '../../hooks/useToast'
 
 function currentMonth(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
+
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
 
 export default function Budget() {
   const [month, setMonth] = useState(currentMonth)
@@ -22,6 +29,15 @@ export default function Budget() {
   const [filter, setFilter] = useState<BudgetFilter>('all')
   const [openPickerId, setOpenPickerId] = useState<number | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [showRecentMoves, setShowRecentMoves] = useState(false)
+  const [undoneStack, setUndoneStack] = useState<BudgetMove[]>([])
+  const [lastMoves, setLastMoves] = useState<BudgetMove[]>([])
+  const [undoing, setUndoing] = useState(false)
+  const [redoing, setRedoing] = useState(false)
+  const { showToast } = useToast()
+
+  const [yr, mo] = month.split('-').map(Number)
+  const monthLabel = `${MONTHS[mo - 1]} ${yr}`
 
   const filteredGroups: BudgetGroup[] = useMemo(() => {
     if (!budget) return []
@@ -75,12 +91,65 @@ export default function Budget() {
     }
   }, [])
 
+  const fetchMoves = useCallback(async (m: string) => {
+    try {
+      const data = await get<BudgetMove[]>(`/budget/moves?month=${m}`)
+      setLastMoves(data)
+    } catch {
+      // ignore
+    }
+  }, [])
+
   useEffect(() => {
     fetchData(month)
-  }, [month, fetchData])
+    fetchMoves(month)
+  }, [month, fetchData, fetchMoves])
 
   function handleMonthChange(m: string) {
     setMonth(m)
+    setUndoneStack([])
+  }
+
+  // ── Undo / Redo ─────────────────────────────────────────────────────────────
+
+  const canUndo = lastMoves.some(m => m.undone === 0)
+
+  async function handleUndo() {
+    const move = lastMoves.find(m => m.undone === 0)
+    if (!move) return
+    setUndoing(true)
+    try {
+      await post(`/budget/moves/${move.id}/undo`, {})
+      setUndoneStack(prev => [move, ...prev])
+      showToast({ message: `Move undone: EUR ${move.amount.toFixed(2)} back to ${move.from}`, type: 'info' })
+      await Promise.all([fetchData(month), fetchMoves(month)])
+    } catch (err) {
+      showToast({ message: err instanceof Error ? err.message : 'Failed to undo', type: 'error' })
+    } finally {
+      setUndoing(false)
+    }
+  }
+
+  async function handleRedo() {
+    if (undoneStack.length === 0) return
+    const move = undoneStack[0]
+    setRedoing(true)
+    try {
+      // Re-apply the move: original from→to direction
+      await post('/budget/move', {
+        month,
+        fromCategoryId: move.fromCategoryId,
+        toCategoryId: move.toCategoryId,
+        amount: move.amount,
+      })
+      setUndoneStack(prev => prev.slice(1))
+      showToast({ message: `Move re-applied: EUR ${move.amount.toFixed(2)} to ${move.to}`, type: 'success' })
+      await Promise.all([fetchData(month), fetchMoves(month)])
+    } catch (err) {
+      showToast({ message: err instanceof Error ? err.message : 'Failed to redo', type: 'error' })
+    } finally {
+      setRedoing(false)
+    }
   }
 
   const handleAssign = useCallback(async (categoryId: number, m: string, assigned: number) => {
@@ -173,6 +242,37 @@ export default function Budget() {
           readyToAssign={budget.readyToAssign}
           onMonthChange={handleMonthChange}
         />
+
+        {/* Undo / Redo / Recent Moves toolbar */}
+        <div className="flex items-center gap-2 px-4 py-1.5 border-b border-gray-800 bg-gray-900/40 shrink-0">
+          <button
+            onClick={handleUndo}
+            disabled={!canUndo || undoing}
+            className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors
+              ${canUndo && !undoing
+                ? 'text-gray-300 hover:bg-gray-800 hover:text-gray-100'
+                : 'text-gray-600 opacity-50 cursor-not-allowed'}`}
+          >
+            ↩ Undo
+          </button>
+          <button
+            onClick={handleRedo}
+            disabled={undoneStack.length === 0 || redoing}
+            className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors
+              ${undoneStack.length > 0 && !redoing
+                ? 'text-gray-300 hover:bg-gray-800 hover:text-gray-100'
+                : 'text-gray-600 opacity-50 cursor-not-allowed'}`}
+          >
+            ↪ Redo
+          </button>
+          <button
+            onClick={() => setShowRecentMoves(true)}
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded text-gray-300
+              hover:bg-gray-800 hover:text-gray-100 transition-colors"
+          >
+            ⏱ Recent Moves
+          </button>
+        </div>
 
         {/* Filter chips */}
         {hasCategories && (
@@ -299,6 +399,17 @@ export default function Budget() {
           groups={budget.groups}
           onComplete={handleMoveComplete}
           onClose={() => setShowMoveModal(false)}
+        />
+      )}
+
+      {/* ── Recent Moves Panel ─────────────────────────────────────────────── */}
+      {showRecentMoves && (
+        <RecentMovesPanel
+          month={month}
+          monthLabel={monthLabel}
+          onClose={() => setShowRecentMoves(false)}
+          onDataChange={() => { fetchData(month); fetchMoves(month) }}
+          showToast={showToast}
         />
       )}
     </div>

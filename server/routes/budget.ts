@@ -100,6 +100,8 @@ router.get('/moves', (req, res) => {
     id: r.id,
     from: r.from_name ?? 'Ready to Assign',
     to: r.to_name ?? 'Ready to Assign',
+    fromCategoryId: r.from_category_id,
+    toCategoryId: r.to_category_id,
     amount: r.amount,
     moved_at: r.moved_at,
     undone: r.undone,
