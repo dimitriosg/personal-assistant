@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { get, post, patch, put } from '../../lib/api'
 import type { BudgetData, BudgetCategory, BudgetGroup, SummaryData } from './types'
 import MonthSelector from './MonthSelector'
@@ -35,6 +35,10 @@ export default function Budget() {
   const [undoing, setUndoing] = useState(false)
   const [redoing, setRedoing] = useState(false)
   const { showToast } = useToast()
+
+  // Keep a ref to budget so async callbacks can read current value without deps
+  const budgetRef = useRef<BudgetData | null>(null)
+  budgetRef.current = budget
 
   const [yr, mo] = month.split('-').map(Number)
   const monthLabel = `${MONTHS[mo - 1]} ${yr}`
@@ -91,12 +95,28 @@ export default function Budget() {
     }
   }, [])
 
+  // Silent background refetch — no loading indicator, used after optimistic updates
+  const silentRefetch = useCallback(async (m: string) => {
+    try {
+      const [b, s] = await Promise.all([
+        get<BudgetData>(`/budget/${m}`),
+        get<SummaryData>(`/summary/${m}`),
+      ])
+      setBudget(b)
+      setSummary(s)
+    } catch {
+      // best-effort, ignore errors on background refetch
+    }
+  }, [])
+
   const fetchMoves = useCallback(async (m: string) => {
+    // Clear stale moves immediately so undo/redo reflect the correct month
+    setLastMoves([])
     try {
       const data = await get<BudgetMove[]>(`/budget/moves?month=${m}`)
       setLastMoves(data)
     } catch {
-      // ignore
+      // ignore — undo/redo will simply be disabled
     }
   }, [])
 
@@ -153,13 +173,69 @@ export default function Budget() {
   }
 
   const handleAssign = useCallback(async (categoryId: number, m: string, assigned: number) => {
+    const prevBudget = budgetRef.current
+    if (!prevBudget) return
+
+    // Find old assigned value for computing delta and optimistic update
+    let oldAssigned = 0
+    let catName = ''
+    for (const g of prevBudget.groups) {
+      const cat = g.categories.find(c => c.id === categoryId)
+      if (cat) { oldAssigned = cat.assigned; catName = cat.name; break }
+    }
+    const delta = +(assigned - oldAssigned).toFixed(2)
+    if (Math.abs(delta) < 0.01) return // no-op — less than 1 cent change
+
+    // ── Optimistic update ────────────────────────────────────────────────────
+    setBudget(prev => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        readyToAssign: +(prev.readyToAssign - delta).toFixed(2),
+        groups: prev.groups.map(g => {
+          if (!g.categories.some(c => c.id === categoryId)) return g
+          return {
+            ...g,
+            categories: g.categories.map(c =>
+              c.id === categoryId
+                ? { ...c, assigned, available: +(c.available + delta).toFixed(2) }
+                : c
+            ),
+            totals: {
+              ...g.totals,
+              assigned: +(g.totals.assigned + delta).toFixed(2),
+              available: +(g.totals.available + delta).toFixed(2),
+            },
+          }
+        }),
+      }
+    })
+
     try {
       await post('/budget/assign', { category_id: categoryId, month: m, assigned })
-      await fetchData(m)
+
+      // Log the delta as a budget_move so it appears in Recent Moves and can be undone
+      try {
+        if (Math.abs(delta) >= 0.01) {
+          const movePayload = delta > 0
+            ? { month: m, fromCategoryId: null, toCategoryId: categoryId, amount: +delta.toFixed(2) }
+            : { month: m, fromCategoryId: categoryId, toCategoryId: null, amount: +(-delta).toFixed(2) }
+          await post('/budget/move', movePayload)
+        }
+      } catch {
+        // Move logging is non-critical — assign succeeded, history just won't reflect it
+      }
+
+      showToast({ message: `EUR ${assigned.toFixed(2)} assigned to ${catName}`, type: 'success' })
+      // Silent background refresh — no loading indicator
+      silentRefetch(m)
+      fetchMoves(m)
     } catch (err) {
-      console.error('Failed to assign:', err)
+      // Revert optimistic update
+      setBudget(prevBudget)
+      showToast({ message: err instanceof Error ? err.message : 'Failed to assign', type: 'error' })
     }
-  }, [fetchData])
+  }, [silentRefetch, fetchMoves, showToast])
 
   const handleRecentMovesDataChange = useCallback(() => {
     fetchData(month)
@@ -168,7 +244,7 @@ export default function Budget() {
 
   async function handleMoveComplete() {
     setShowMoveModal(false)
-    await fetchData(month)
+    await Promise.all([fetchData(month), fetchMoves(month)])
   }
 
   const handleSelect = useCallback((id: number, checked: boolean) => {

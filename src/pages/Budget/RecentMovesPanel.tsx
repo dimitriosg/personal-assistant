@@ -56,7 +56,10 @@ export default function RecentMovesPanel({ month, monthLabel, onClose, onDataCha
 
   function formatTime(movedAt: string) {
     try {
-      const d = new Date(movedAt + 'Z')
+      // SQLite datetime format: 'YYYY-MM-DD HH:MM:SS' — must replace space with T for valid ISO 8601
+      const isoString = movedAt.replace(' ', 'T') + 'Z'
+      const d = new Date(isoString)
+      if (isNaN(d.getTime())) return ''
       return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     } catch {
       return ''
