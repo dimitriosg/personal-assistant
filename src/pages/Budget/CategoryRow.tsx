@@ -203,7 +203,9 @@ export default memo(function CategoryRow({ category, month, onAssign, onInspect,
           />
         ) : (
           <button
-            onClick={handleRowClick}
+            type="button"
+            tabIndex={-1}
+            aria-hidden="true"
             className="w-full text-right tabular-nums text-gray-300 hover:text-indigo-400
               hover:bg-indigo-500/10 rounded px-1.5 py-0.5 transition-colors cursor-text"
             title="Click to edit assigned amount"
