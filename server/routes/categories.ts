@@ -150,4 +150,32 @@ router.patch('/:id/sort', (req, res) => {
   res.json(updated)
 })
 
+// ── PATCH /api/categories/:id/snooze ──────────────────────────────────────────
+
+router.patch('/:id/snooze', (req, res) => {
+  const id = Number(req.params.id)
+
+  if (!db.prepare('SELECT id FROM categories WHERE id = ?').get(id)) {
+    return res.status(404).json({ error: 'Not found' })
+  }
+
+  const { snoozed } = req.body as { snoozed?: boolean }
+  db.prepare('UPDATE categories SET snoozed = ? WHERE id = ?').run(snoozed ? 1 : 0, id)
+  res.json({ id, snoozed: !!snoozed })
+})
+
+// ── PATCH /api/categories/:id/emoji ───────────────────────────────────────────
+
+router.patch('/:id/emoji', (req, res) => {
+  const id = Number(req.params.id)
+
+  if (!db.prepare('SELECT id FROM categories WHERE id = ?').get(id)) {
+    return res.status(404).json({ error: 'Not found' })
+  }
+
+  const { emoji } = req.body as { emoji?: string | null }
+  db.prepare('UPDATE categories SET emoji = ? WHERE id = ?').run(emoji ?? null, id)
+  res.json({ id, emoji: emoji ?? null })
+})
+
 export default router
