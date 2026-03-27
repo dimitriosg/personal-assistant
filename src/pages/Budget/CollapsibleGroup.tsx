@@ -8,8 +8,6 @@ interface Props {
   month: string
   onAssign: (categoryId: number, month: string, assigned: number) => void
   onInspect: (categoryId: number) => void
-  onEditStart: (categoryId: number) => void
-  onEditEnd: () => void
   openPickerId: number | null
   setOpenPickerId: (id: number | null) => void
   selectedIds: Set<number>
@@ -17,7 +15,7 @@ interface Props {
   onSelectGroup: (groupId: number, checked: boolean) => void
 }
 
-export default function CollapsibleGroup({ group, month, onAssign, onInspect, onEditStart, onEditEnd, openPickerId, setOpenPickerId, selectedIds, onSelect, onSelectGroup }: Props) {
+export default function CollapsibleGroup({ group, month, onAssign, onInspect, openPickerId, setOpenPickerId, selectedIds, onSelect, onSelectGroup }: Props) {
   const [collapsed, setCollapsed] = useState(group.is_collapsed)
 
   const groupCategoryIds = group.categories.map(c => c.id)
@@ -99,8 +97,6 @@ export default function CollapsibleGroup({ group, month, onAssign, onInspect, on
               month={month}
               onAssign={onAssign}
               onInspect={onInspect}
-              onEditStart={onEditStart}
-              onEditEnd={onEditEnd}
               openPickerId={openPickerId}
               setOpenPickerId={setOpenPickerId}
               selectedIds={selectedIds}

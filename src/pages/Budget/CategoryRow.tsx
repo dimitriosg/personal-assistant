@@ -13,10 +13,6 @@ interface Props {
   month: string
   onAssign: (categoryId: number, month: string, assigned: number) => void
   onInspect: (categoryId: number) => void
-  /** Called when this row enters inline edit mode. */
-  onEditStart: (categoryId: number) => void
-  /** Called when this row exits inline edit mode (blur or Escape). */
-  onEditEnd: () => void
   /** ID of the category whose picker is currently open (null = none). */
   openPickerId: number | null
   /** Setter to open/close any picker — shared across all rows. */
@@ -25,30 +21,24 @@ interface Props {
   onSelect: (id: number, checked: boolean) => void
 }
 
-export default memo(function CategoryRow({ category, month, onAssign, onInspect, onEditStart, onEditEnd, openPickerId, setOpenPickerId, selectedIds, onSelect }: Props) {
+export default memo(function CategoryRow({ category, month, onAssign, onInspect, openPickerId, setOpenPickerId, selectedIds, onSelect }: Props) {
   const [editing, setEditing] = useState(false)
-  const [editValue, setEditValue] = useState('')
+  const [inputValue, setInputValue] = useState('')
   const [localEmoji, setLocalEmoji] = useState<string | null>(category.emoji)
   const inputRef = useRef<HTMLInputElement>(null)
-  // Tracks the last successfully committed assigned value within this component,
-  // independent of the server-returned category.assigned prop which may be stale
-  // after a silentRefetch that races with an in-flight assign.
+  // Tracks the last successfully committed assigned value locally, independent of the
+  // server-returned prop so chained expressions always use the correct base.
   const localAssigned = useRef(category.assigned)
-  // Tracks the assigned value at the moment the row was clicked into edit mode,
-  // used to revert on Escape (even after multiple Enter commits in the same session).
-  const originalValue = useRef(0)
-  // Prevents the onBlur handler from re-firing commitEdit after Enter/Escape already handled it.
-  const committed = useRef(false)
 
+  // Focus + select when edit mode opens
   useEffect(() => {
-    if (editing && inputRef.current) {
-      inputRef.current.focus()
-      inputRef.current.select()
+    if (editing) {
+      inputRef.current?.focus()
+      inputRef.current?.select()
     }
   }, [editing])
 
-  // Sync localAssigned when the server prop changes, but only while NOT editing
-  // so we pick up external changes (Undo/Redo) without clobbering mid-session expressions.
+  // Sync localAssigned from server prop only while NOT editing (picks up Undo/external changes)
   useEffect(() => {
     if (!editing) {
       localAssigned.current = category.assigned
@@ -66,68 +56,31 @@ export default memo(function CategoryRow({ category, month, onAssign, onInspect,
   // editing or the emoji picker is open. Specific cells stop propagation below.
   function handleRowClick() {
     if (editing || isPickerOpen) return
-    // Capture the local (not server) assigned value as the revert target for Escape
-    originalValue.current = localAssigned.current
-    committed.current = false
-    setEditValue(localAssigned.current === 0 ? '' : localAssigned.current.toFixed(2))
+    setInputValue(localAssigned.current === 0 ? '' : localAssigned.current.toFixed(2))
     setEditing(true)
-    onEditStart(category.id)
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter') {
-      // Resolve expression using localAssigned as base (not the stale server prop)
-      const resolved = resolveExpression(editValue, localAssigned.current)
+      const resolved = resolveExpression(inputValue, localAssigned.current)
       if (!isNaN(resolved)) {
-        committed.current = true
-        const oldValue = localAssigned.current
-        // Update local ref BEFORE calling onAssign so chained expressions get the right base
-        localAssigned.current = resolved
-        // Update input to show resolved absolute value so blur won't re-apply expression
-        setEditValue(resolved.toFixed(2))
-        if (resolved !== oldValue) {
+        if (resolved !== localAssigned.current) {
+          localAssigned.current = resolved   // update BEFORE calling onAssign
           onAssign(category.id, month, resolved)
         }
-        // Re-select all text after React re-renders, then clear the guard so
-        // a subsequent click-away blur commits normally
-        requestAnimationFrame(() => {
-          inputRef.current?.select()
-          committed.current = false
-        })
+        setInputValue(resolved.toFixed(2))   // show absolute value, ready for next expr
+        inputRef.current?.select()           // re-select so user can type next expression
+        // Stay in editing mode (YNAB-style) — blur or Escape closes
       }
     }
     if (e.key === 'Escape') {
-      // Mark as handled so the blur that fires when the input is removed from the
-      // DOM (due to setEditing(false) below) does not try to commit again.
-      committed.current = true
-      const revertTo = originalValue.current
-      const currentLocal = localAssigned.current
-      // Restore local ref to the pre-session value
-      localAssigned.current = revertTo
-      setEditing(false)
-      onEditEnd()
-      // If intermediate Enters already changed the value, undo them all in one call
-      if (revertTo !== currentLocal) {
-        onAssign(category.id, month, revertTo)
-      }
+      setEditing(false)   // just close — no API call, localAssigned keeps last committed value
     }
   }
 
+  // Blur only closes edit mode visually — NEVER fires onAssign
   function handleBlur() {
-    // If Enter or Escape already handled this commit, skip
-    if (committed.current) {
-      committed.current = false
-      return
-    }
-    // Blur without Enter = commit current value and close edit mode
     setEditing(false)
-    onEditEnd()
-    const resolved = resolveExpression(editValue, localAssigned.current)
-    if (!isNaN(resolved) && resolved !== localAssigned.current) {
-      // Update local ref BEFORE calling onAssign (consistent with Enter handler)
-      localAssigned.current = resolved
-      onAssign(category.id, month, resolved)
-    }
   }
 
   function togglePicker(e: React.MouseEvent) {
@@ -236,8 +189,8 @@ export default memo(function CategoryRow({ category, month, onAssign, onInspect,
             ref={inputRef}
             type="text"
             inputMode="decimal"
-            value={editValue}
-            onChange={e => setEditValue(e.target.value)}
+            value={inputValue}
+            onChange={e => setInputValue(e.target.value)}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             className="w-full bg-gray-800 border border-indigo-500 rounded px-1.5 py-0.5
@@ -250,7 +203,7 @@ export default memo(function CategoryRow({ category, month, onAssign, onInspect,
               hover:bg-indigo-500/10 rounded px-1.5 py-0.5 transition-colors cursor-text"
             title="Click to edit assigned amount"
           >
-            <AmountCell value={category.assigned} />
+            <AmountCell value={localAssigned.current} />
           </button>
         )}
       </div>

@@ -42,10 +42,6 @@ export default function Budget() {
   const budgetRef = useRef<BudgetData | null>(null)
   budgetRef.current = budget
 
-  // Tracks which category row is in edit mode so silentRefetch can preserve its
-  // optimistic assigned value instead of overwriting it with the server's stale data.
-  const editingCategoryIdRef = useRef<number | null>(null)
-
   const [yr, mo] = month.split('-').map(Number)
   const monthLabel = `${MONTHS[mo - 1]} ${yr}`
 
@@ -101,33 +97,14 @@ export default function Budget() {
     }
   }, [])
 
-  // Silent background refetch — no loading indicator, used after optimistic updates.
-  // If a row is currently in edit mode, the server response is merged with the current
-  // optimistic state so chained expressions don't lose their locally-committed base.
+  // Silent background refetch — no loading indicator, used after optimistic updates
   const silentRefetch = useCallback(async (m: string) => {
     try {
       const [b, s] = await Promise.all([
         get<BudgetData>(`/budget/${m}`),
         get<SummaryData>(`/summary/${m}`),
       ])
-      const editingId = editingCategoryIdRef.current
-      const merged: BudgetData = editingId === null ? b : {
-        ...b,
-        groups: b.groups.map(g => ({
-          ...g,
-          categories: g.categories.map(c => {
-            if (c.id !== editingId) return c
-            // Preserve the locally-committed assigned value so chained expressions
-            // (e.g. +50 → +20) keep the correct base after the background refetch.
-            const localAssigned = budgetRef.current?.groups
-              .flatMap(grp => grp.categories)
-              .find(x => x.id === editingId)
-              ?.assigned
-            return localAssigned !== undefined ? { ...c, assigned: localAssigned } : c
-          }),
-        })),
-      }
-      setBudget(merged)
+      setBudget(b)
       setSummary(s)
     } catch {
       // best-effort, ignore errors on background refetch
@@ -159,15 +136,6 @@ export default function Budget() {
   // ── Inspect button → Inspector panel ────────────────────────────────────────
   const handleInspect = useCallback((categoryId: number) => {
     setInspectedCategoryId(prev => prev === categoryId ? null : categoryId)
-  }, [])
-
-  // ── Inline edit tracking (used by silentRefetch to preserve optimistic state) ──
-  const handleEditStart = useCallback((categoryId: number) => {
-    editingCategoryIdRef.current = categoryId
-  }, [])
-
-  const handleEditEnd = useCallback(() => {
-    editingCategoryIdRef.current = null
   }, [])
 
   // ── Undo / Redo ─────────────────────────────────────────────────────────────
@@ -464,8 +432,6 @@ export default function Budget() {
               month={month}
               onAssign={handleAssign}
               onInspect={handleInspect}
-              onEditStart={handleEditStart}
-              onEditEnd={handleEditEnd}
               openPickerId={openPickerId}
               setOpenPickerId={setOpenPickerId}
               selectedIds={selectedIds}
