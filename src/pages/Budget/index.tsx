@@ -220,19 +220,14 @@ export default function Budget() {
     })
 
     try {
-      await post('/budget/assign', { category_id: categoryId, month: m, assigned })
-
-      // Log the delta as a budget_move so it appears in Recent Moves and can be undone
-      try {
-        if (Math.abs(delta) >= 0.01) {
-          const movePayload = delta > 0
-            ? { month: m, fromCategoryId: null, toCategoryId: categoryId, amount: +delta.toFixed(2) }
-            : { month: m, fromCategoryId: categoryId, toCategoryId: null, amount: +(-delta).toFixed(2) }
-          await post('/budget/move', movePayload)
-        }
-      } catch {
-        // Move logging is non-critical — assign succeeded, history just won't reflect it
-      }
+      // POST /budget/move handles both the monthly_budgets update (delta-add) AND
+      // logging in budget_moves. A separate /budget/assign call must NOT be made —
+      // doing so would write the absolute value before move adds the delta again,
+      // causing a double-write (e.g. +100 from 0 → assign sets 100, move adds 100 → 200).
+      const movePayload = delta > 0
+        ? { month: m, fromCategoryId: null, toCategoryId: categoryId, amount: +delta.toFixed(2) }
+        : { month: m, fromCategoryId: categoryId, toCategoryId: null, amount: +(-delta).toFixed(2) }
+      await post('/budget/move', movePayload)
 
       showToast({ message: `EUR ${assigned.toFixed(2)} assigned to ${catName}`, type: 'success' })
       // Silent background refresh — no loading indicator
