@@ -65,13 +65,13 @@ export default function EmojiPicker({ currentEmoji, onSelect, onClose }: EmojiPi
       ref={ref}
       className="absolute z-50 top-full left-0 mt-1 p-2 bg-gray-900 border border-gray-700 rounded-lg shadow-xl"
     >
-      <div className="grid grid-cols-8 gap-1">
+      <div className="grid grid-cols-8 gap-1.5">
         {EMOJIS.map(emoji => (
           <button
             key={emoji}
             type="button"
             onClick={() => handleClick(emoji)}
-            className={`w-8 h-8 flex items-center justify-center rounded text-base hover:bg-gray-700 transition-colors
+            className={`w-8 h-8 p-0.5 flex items-center justify-center rounded text-base hover:bg-gray-700 transition-colors
               ${emoji === currentEmoji ? 'bg-indigo-500/30 ring-1 ring-indigo-500' : ''}`}
             title={emoji}
           >
