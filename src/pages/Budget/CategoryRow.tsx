@@ -3,6 +3,7 @@ import type { BudgetCategory } from './types'
 import AmountCell from './AmountCell'
 import StatusBadge, { deriveStatus } from '../../components/StatusBadge'
 import CategoryProgressBar from '../../components/budget/CategoryProgressBar'
+import AvailableBadge from '../../components/budget/AvailableBadge'
 
 interface Props {
   category: BudgetCategory
@@ -40,14 +41,12 @@ export default memo(function CategoryRow({ category, month, onAssign }: Props) {
     if (e.key === 'Escape') setEditing(false)
   }
 
-  // Determine Available badge/color
-  const availColor =
-    category.available > 0 ? 'text-green-400'
-    : category.available < 0 ? 'text-red-400'
-    : 'text-gray-600'
+  // Derive Available badge props
+  const target = category.target
+  const hasTarget = target !== null
+  const isFunded = hasTarget && category.assigned >= target.target_amount
 
   // Derive status badge
-  const target = category.target
   const status = deriveStatus(
     category.available,
     category.assigned,
@@ -114,8 +113,12 @@ export default memo(function CategoryRow({ category, month, onAssign }: Props) {
       </div>
 
       {/* Available */}
-      <div className={`text-right font-medium ${availColor}`}>
-        <AmountCell value={category.available} variant="available" />
+      <div className="text-right font-medium">
+        <AvailableBadge
+          amount={category.available}
+          isFunded={isFunded}
+          hasTarget={hasTarget}
+        />
       </div>
     </div>
   )

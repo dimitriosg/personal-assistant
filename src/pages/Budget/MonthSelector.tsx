@@ -25,6 +25,8 @@ export default function MonthSelector({ month, readyToAssign, onMonthChange }: P
     onMonthChange(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
   }
 
+  const isAllAssigned = Math.abs(readyToAssign) <= 0.005
+
   const rtaColor = readyToAssign > 0
     ? 'text-green-400'
     : readyToAssign < 0
@@ -65,13 +67,22 @@ export default function MonthSelector({ month, readyToAssign, onMonthChange }: P
 
       {/* Ready to Assign */}
       <div className="flex items-center gap-2">
-        <span className="text-xs text-gray-500 hidden sm:inline">Ready to Assign</span>
-        <span
-          className={`text-sm font-bold tabular-nums cursor-default ${rtaColor}`}
-          title="Ready to Assign — unassigned money available for budgeting"
-        >
-          {fmt(readyToAssign)}
-        </span>
+        {isAllAssigned ? (
+          <span className="flex items-center gap-1.5 rounded-full bg-green-500/20 border border-green-500/30 text-green-400 px-3 py-1 text-sm font-medium">
+            <span>✓</span>
+            <span>All Money Assigned</span>
+          </span>
+        ) : (
+          <>
+            <span className="text-xs text-gray-500 hidden sm:inline">Ready to Assign</span>
+            <span
+              className={`text-sm font-bold tabular-nums cursor-default ${rtaColor}`}
+              title="Ready to Assign — unassigned money available for budgeting"
+            >
+              {fmt(readyToAssign)}
+            </span>
+          </>
+        )}
       </div>
     </div>
   )
