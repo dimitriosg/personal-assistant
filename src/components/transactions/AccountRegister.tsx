@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { get, post, del } from '../../lib/api'
 import { useToast } from '../../hooks/useToast'
 import TransactionForm, { type TransactionPayload } from '../../pages/Transactions/TransactionForm'
-import type { CategoryGroup } from '../../pages/Transactions/types'
+import TransferModal from './TransferModal'
+import type { CategoryGroup, Account } from '../../pages/Transactions/types'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -11,16 +12,18 @@ interface RegisterRow {
   date: string
   description: string | null
   amount: number
-  type: 'income' | 'expense'
+  type: 'income' | 'expense' | 'transfer_in' | 'transfer_out'
   category_id: number | null
   category_name: string | null
   account_id: number | null
+  transfer_pair_id: number | null
   running_balance: number
 }
 
 interface Props {
   accountId: number
   accountName: string
+  accounts: Account[]
   groups: CategoryGroup[]
   payees: string[]
   onTransactionChange: () => void
@@ -41,6 +44,7 @@ function formatDate(iso: string): string {
 export default function AccountRegister({
   accountId,
   accountName,
+  accounts,
   groups,
   payees,
   onTransactionChange,
@@ -49,6 +53,7 @@ export default function AccountRegister({
   const [rows, setRows] = useState<RegisterRow[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [showTransfer, setShowTransfer] = useState(false)
 
   const fetchRegister = useCallback(async () => {
     setLoading(true)
@@ -84,10 +89,25 @@ export default function AccountRegister({
     }
   }
 
-  async function handleDelete(id: number) {
+  async function handleDelete(row: RegisterRow) {
+    if (row.transfer_pair_id != null) {
+      if (!confirm('This will delete both sides of the transfer. Continue?')) return
+      try {
+        await del(`/transactions/transfer/${row.transfer_pair_id}`)
+        showToast({ message: 'Transfer deleted', type: 'success' })
+        await fetchRegister()
+        onTransactionChange()
+      } catch (err) {
+        showToast({
+          message: err instanceof Error ? err.message : 'Failed to delete transfer',
+          type: 'error',
+        })
+      }
+      return
+    }
     if (!confirm('Delete this transaction?')) return
     try {
-      await del(`/transactions/${id}`)
+      await del(`/transactions/${row.id}`)
       showToast({ message: 'Transaction deleted', type: 'success' })
       await fetchRegister()
       onTransactionChange()
@@ -140,14 +160,24 @@ export default function AccountRegister({
             {fmt(finalBalance)}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowForm(true)}
-          className="px-4 py-1.5 text-sm font-medium bg-indigo-600 hover:bg-indigo-500
-            text-white rounded-lg transition-colors"
-        >
-          + Add Transaction
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowTransfer(true)}
+            className="px-4 py-1.5 text-sm font-medium bg-gray-700 hover:bg-gray-600
+              text-gray-200 rounded-lg transition-colors"
+          >
+            ↔ Transfer
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowForm(true)}
+            className="px-4 py-1.5 text-sm font-medium bg-indigo-600 hover:bg-indigo-500
+              text-white rounded-lg transition-colors"
+          >
+            + Add Transaction
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -188,7 +218,15 @@ export default function AccountRegister({
 
                   {/* Category */}
                   <td className="px-3 py-2 max-w-[200px] truncate">
-                    {row.category_name ? (
+                    {row.type === 'transfer_in' ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-300">
+                        ↔ Transfer In
+                      </span>
+                    ) : row.type === 'transfer_out' ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-300">
+                        ↔ Transfer Out
+                      </span>
+                    ) : row.category_name ? (
                       <span
                         className="inline-block px-2 py-0.5 rounded-md text-xs font-medium
                           bg-indigo-600/15 text-indigo-300 border border-indigo-600/20 truncate max-w-full"
@@ -204,7 +242,11 @@ export default function AccountRegister({
 
                   {/* Amount */}
                   <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
-                    {row.type === 'income' ? (
+                    {row.type === 'transfer_out' ? (
+                      <span className="text-red-400">↑ {fmt(Math.abs(row.amount))}</span>
+                    ) : row.type === 'transfer_in' ? (
+                      <span className="text-green-400">↓ +{fmt(row.amount)}</span>
+                    ) : row.amount >= 0 ? (
                       <span className="text-green-400">+{fmt(row.amount)}</span>
                     ) : (
                       <span className="text-red-400">{fmt(Math.abs(row.amount))}</span>
@@ -222,10 +264,10 @@ export default function AccountRegister({
                   <td className="px-2 py-2 text-right">
                     <button
                       type="button"
-                      onClick={() => handleDelete(row.id)}
+                      onClick={() => handleDelete(row)}
                       className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400
                         transition-colors text-sm px-1"
-                      title="Delete transaction"
+                      title={row.transfer_pair_id != null ? 'Delete transfer' : 'Delete transaction'}
                     >
                       ✕
                     </button>
@@ -246,6 +288,19 @@ export default function AccountRegister({
           accountId={accountId}
           onSave={handleSave}
           onClose={() => setShowForm(false)}
+        />
+      )}
+
+      {/* Transfer modal */}
+      {showTransfer && (
+        <TransferModal
+          accounts={accounts}
+          fromAccountId={accountId}
+          onClose={() => setShowTransfer(false)}
+          onSuccess={async () => {
+            await fetchRegister()
+            onTransactionChange()
+          }}
         />
       )}
     </div>

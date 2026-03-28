@@ -7,6 +7,7 @@ import TransactionForm, { type TransactionPayload } from './TransactionForm'
 import AccountsSidebar from '../../components/transactions/AccountsSidebar'
 import AddAccountWizard from '../../components/transactions/AddAccountWizard'
 import AccountRegister from '../../components/transactions/AccountRegister'
+import TransferModal from '../../components/transactions/TransferModal'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,7 @@ export default function Transactions() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showAddAccount, setShowAddAccount] = useState(false)
+  const [showTransfer, setShowTransfer] = useState(false)
 
   // Filters — initialised from URL query params (account_id handled separately above)
   const [filters, setFilters] = useState<Filters>(() => ({
@@ -475,6 +477,7 @@ export default function Transactions() {
             <AccountRegister
               accountId={Number(accountId)}
               accountName={selectedAccount.name}
+              accounts={accounts}
               groups={groups}
               payees={payees}
               onTransactionChange={fetchAccounts}
@@ -485,13 +488,22 @@ export default function Transactions() {
       {/* ── Header ───────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-gray-100">Transactions</h1>
-        <button
-          onClick={openAdd}
-          className="px-4 py-1.5 text-sm font-medium bg-indigo-600 hover:bg-indigo-500
-            text-white rounded-lg transition-colors"
-        >
-          + Add Transaction
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowTransfer(true)}
+            className="px-4 py-1.5 text-sm font-medium bg-gray-700 hover:bg-gray-600
+              text-gray-200 rounded-lg transition-colors"
+          >
+            ↔ Transfer
+          </button>
+          <button
+            onClick={openAdd}
+            className="px-4 py-1.5 text-sm font-medium bg-indigo-600 hover:bg-indigo-500
+              text-white rounded-lg transition-colors"
+          >
+            + Add Transaction
+          </button>
+        </div>
       </div>
 
       {/* ── Filters ──────────────────────────────────────────────────────── */}
@@ -832,6 +844,18 @@ export default function Transactions() {
         <AddAccountWizard
           onClose={() => setShowAddAccount(false)}
           onSuccess={handleAccountAdded}
+        />
+      )}
+
+      {/* ── Transfer Modal ──────────────────────────────────────────────── */}
+      {showTransfer && (
+        <TransferModal
+          accounts={accounts}
+          onClose={() => setShowTransfer(false)}
+          onSuccess={() => {
+            fetchTransactions()
+            fetchAccounts()
+          }}
         />
       )}
     </div>

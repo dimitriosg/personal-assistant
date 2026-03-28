@@ -26,6 +26,8 @@ interface TransactionRow {
   memo: string | null
   amount: number
   cleared: number
+  type: string | null
+  transfer_pair_id: number | null
   created_at: string
 }
 
@@ -146,6 +148,7 @@ router.get('/:id/register', (req, res) => {
 
   const rows = db.prepare(`
     SELECT t.id, t.date, t.payee, t.amount, t.category_id, t.account_id,
+           t.type, t.transfer_pair_id,
            c.name AS category_name
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
@@ -158,21 +161,27 @@ router.get('/:id/register', (req, res) => {
     amount: number
     category_id: number | null
     account_id: number | null
+    type: string | null
+    transfer_pair_id: number | null
     category_name: string | null
   }[]
 
   let runningBalance = 0
   const result = rows.map(r => {
     runningBalance += r.amount
+    let categoryName = r.category_name
+    if (r.type === 'transfer_in') categoryName = 'Transfer In'
+    else if (r.type === 'transfer_out') categoryName = 'Transfer Out'
     return {
       id: r.id,
       date: r.date,
       description: r.payee,
       amount: r.amount,
-      type: r.amount >= 0 ? 'income' : 'expense',
+      type: r.type ?? (r.amount >= 0 ? 'income' : 'expense'),
       category_id: r.category_id,
-      category_name: r.category_name,
+      category_name: categoryName,
       account_id: r.account_id,
+      transfer_pair_id: r.transfer_pair_id,
       running_balance: +runningBalance.toFixed(2),
     }
   })
