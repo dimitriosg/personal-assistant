@@ -470,7 +470,7 @@ export default function Transactions() {
                 All Accounts
               </button>
               <span className="text-gray-700">›</span>
-              <span className="text-gray-300 font-medium">{selectedAccount.name}</span>
+              <span className="text-gray-100 font-medium">{selectedAccount.name}</span>
             </div>
             <AccountRegister
               accountId={Number(accountId)}
