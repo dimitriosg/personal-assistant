@@ -6,6 +6,7 @@ import type { Account, Transaction, CategoryGroup, SortField, SortDir, Filters }
 import TransactionForm, { type TransactionPayload } from './TransactionForm'
 import AccountsSidebar from '../../components/transactions/AccountsSidebar'
 import AddAccountWizard from '../../components/transactions/AddAccountWizard'
+import AccountRegister from '../../components/transactions/AccountRegister'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -339,8 +340,12 @@ export default function Transactions() {
 
   function handleSelectAccount(id: string) {
     const p = new URLSearchParams(searchParams)
-    if (id) p.set('account_id', id)
-    else p.delete('account_id')
+    // Clicking the same account again deselects it (returns to All Accounts view)
+    if (id && id !== accountId) {
+      p.set('account_id', id)
+    } else {
+      p.delete('account_id')
+    }
     setSearchParams(p, { replace: true })
   }
 
@@ -376,6 +381,12 @@ export default function Transactions() {
       net: +(income + expenses).toFixed(2),
     }
   }, [filtered])
+
+  // Derive the name of the currently selected account for the register heading
+  const selectedAccount = useMemo(
+    () => accounts.find(a => String(a.id) === accountId) ?? null,
+    [accounts, accountId]
+  )
 
   // ── Render ─────────────────────────────────────────────────────────────
 
@@ -445,6 +456,32 @@ export default function Transactions() {
       {/* ── Main content area ───────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-4 py-6 pb-24 md:pb-8">
+
+        {/* ── Account Register view (when an account is selected) ──────────── */}
+        {accountId && selectedAccount ? (
+          <>
+            {/* Breadcrumb */}
+            <div className="flex items-center gap-1.5 mb-5 text-sm">
+              <button
+                type="button"
+                onClick={() => handleSelectAccount('')}
+                className="text-gray-500 hover:text-indigo-400 transition-colors"
+              >
+                All Accounts
+              </button>
+              <span className="text-gray-700">›</span>
+              <span className="text-gray-300 font-medium">{selectedAccount.name}</span>
+            </div>
+            <AccountRegister
+              accountId={Number(accountId)}
+              accountName={selectedAccount.name}
+              groups={groups}
+              payees={payees}
+              onTransactionChange={fetchAccounts}
+            />
+          </>
+        ) : (
+          <>
       {/* ── Header ───────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-gray-100">Transactions</h1>
@@ -785,6 +822,8 @@ export default function Transactions() {
           onClose={() => { setShowForm(false); setEditingTx(null) }}
         />
       )}
+          </>
+        )}{/* end accountId conditional */}
         </div>{/* end max-w-4xl */}
       </div>{/* end flex-1 overflow-y-auto */}
 

@@ -134,6 +134,52 @@ router.delete('/:id', (req, res) => {
   res.json({ success: true })
 })
 
+// ── GET /api/accounts/:id/register ───────────────────────────────────────────
+// Returns ALL transactions for the account sorted date ASC with running balance.
+// running_balance = cumulative sum of amounts up to that row (income adds, expense subtracts).
+
+router.get('/:id/register', (req, res) => {
+  const id = Number(req.params.id)
+  if (!db.prepare('SELECT id FROM accounts WHERE id = ?').get(id)) {
+    return res.status(404).json({ error: 'Not found' })
+  }
+
+  const rows = db.prepare(`
+    SELECT t.id, t.date, t.payee, t.amount, t.category_id, t.account_id,
+           c.name AS category_name
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    WHERE t.account_id = ?
+    ORDER BY t.date ASC, t.id ASC
+  `).all(id) as {
+    id: number
+    date: string
+    payee: string | null
+    amount: number
+    category_id: number | null
+    account_id: number | null
+    category_name: string | null
+  }[]
+
+  let runningBalance = 0
+  const result = rows.map(r => {
+    runningBalance += r.amount
+    return {
+      id: r.id,
+      date: r.date,
+      description: r.payee,
+      amount: r.amount,
+      type: r.amount >= 0 ? 'income' : 'expense',
+      category_id: r.category_id,
+      category_name: r.category_name,
+      account_id: r.account_id,
+      running_balance: +runningBalance.toFixed(2),
+    }
+  })
+
+  res.json(result)
+})
+
 // ── GET /api/accounts/:id/transactions ────────────────────────────────────────
 // Returns transactions WHERE account_id = :id
 // Supports ?month=YYYY-MM query param

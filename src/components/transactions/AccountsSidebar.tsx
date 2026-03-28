@@ -406,8 +406,8 @@ function AccountRow({
     <div
       className={`group flex items-center w-full rounded-md transition-colors ${
         isActive
-          ? 'bg-[#2a2a4a] text-gray-200'
-          : 'text-gray-400 hover:bg-gray-800/60 hover:text-gray-200'
+          ? 'bg-[#2a2a4a] text-gray-200 border-l-2 border-indigo-500 font-medium'
+          : 'text-gray-400 hover:bg-gray-800/60 hover:text-gray-200 border-l-2 border-transparent'
       }`}
     >
       {/* Navigation button — takes all available space */}
