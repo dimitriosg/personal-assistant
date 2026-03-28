@@ -152,6 +152,22 @@ db.exec(`
     ON ai_conversations(conversation_id)
 `)
 
+// ── Phase 10: accounts table ──────────────────────────────────────────────────
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS accounts (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    name         TEXT    NOT NULL,
+    type         TEXT    NOT NULL CHECK(type IN ('budget','tracking')),
+    account_type TEXT    NOT NULL,
+    balance      REAL    NOT NULL DEFAULT 0,
+    currency     TEXT    NOT NULL DEFAULT 'EUR',
+    is_closed    INTEGER NOT NULL DEFAULT 0,
+    sort_order   INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+  )
+`)
+
 // ── Phase 8: budget_moves table + categories columns ─────────────────────────
 
 db.exec(`
@@ -177,6 +193,7 @@ try { db.exec("ALTER TABLE expenses ADD COLUMN custom_split REAL") } catch { /* 
 try { db.exec("ALTER TABLE stress_tests ADD COLUMN category_id INTEGER REFERENCES categories(id)") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE categories ADD COLUMN emoji TEXT DEFAULT NULL") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE categories ADD COLUMN snoozed INTEGER DEFAULT 0") } catch { /* already exists */ }
+try { db.exec("ALTER TABLE transactions ADD COLUMN account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL") } catch { /* already exists */ }
 
 // ── Default settings (INSERT OR IGNORE — never overwrite user data) ──────────
 db.exec(`
@@ -185,6 +202,12 @@ db.exec(`
   INSERT OR IGNORE INTO settings (key, value) VALUES ('currency', 'EUR');
   INSERT OR IGNORE INTO settings (key, value) VALUES ('onboarding_complete', 'false');
   INSERT OR IGNORE INTO settings (key, value) VALUES ('language', 'en');
+`)
+
+// ── Seed: default budget account ─────────────────────────────────────────────
+db.exec(`
+  INSERT OR IGNORE INTO accounts (id, name, type, account_type, balance, currency)
+  VALUES (1, 'Checking', 'budget', 'checking', 0, 'EUR')
 `)
 
 export default db
