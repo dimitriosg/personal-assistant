@@ -349,6 +349,18 @@ export default function Transactions() {
     fetchAccounts()
   }
 
+  function handleAccountUpdated(updated: Account) {
+    setAccounts(prev => prev.map(a => a.id === updated.id ? updated : a))
+  }
+
+  function handleAccountDeleted(id: number) {
+    setAccounts(prev => prev.filter(a => a.id !== id))
+    // If the deleted account was selected, navigate back to All Accounts
+    if (accountId === String(id)) {
+      handleSelectAccount('')
+    }
+  }
+
   // ── Totals ──────────────────────────────────────────────────────────────
 
   const totals = useMemo(() => {
@@ -375,6 +387,8 @@ export default function Transactions() {
           activeAccountId={accountId}
           onSelect={handleSelectAccount}
           onAddAccount={() => setShowAddAccount(true)}
+          onAccountUpdated={handleAccountUpdated}
+          onAccountDeleted={handleAccountDeleted}
         />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-gray-600 text-sm">Loading transactions…</div>
@@ -397,6 +411,8 @@ export default function Transactions() {
           activeAccountId={accountId}
           onSelect={handleSelectAccount}
           onAddAccount={() => setShowAddAccount(true)}
+          onAccountUpdated={handleAccountUpdated}
+          onAccountDeleted={handleAccountDeleted}
         />
         <div className="flex-1 flex items-center justify-center p-6">
           <div className="bg-red-950/40 border border-red-900 rounded-xl p-5">
@@ -422,6 +438,8 @@ export default function Transactions() {
         activeAccountId={accountId}
         onSelect={handleSelectAccount}
         onAddAccount={() => setShowAddAccount(true)}
+        onAccountUpdated={handleAccountUpdated}
+        onAccountDeleted={handleAccountDeleted}
       />
 
       {/* ── Main content area ───────────────────────────────────────────── */}
