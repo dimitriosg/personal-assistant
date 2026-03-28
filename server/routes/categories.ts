@@ -119,6 +119,30 @@ router.put('/:id', (req, res) => {
   res.json(updated)
 })
 
+// ── DELETE /api/categories/bulk ───────────────────────────────────────────────
+
+router.delete('/bulk', (req, res) => {
+  const { ids } = req.body as { ids?: unknown }
+
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'ids must be a non-empty array' })
+  }
+
+  const numIds = ids.map(Number).filter(n => !isNaN(n) && n > 0)
+  if (numIds.length === 0) {
+    return res.status(400).json({ error: 'ids must contain valid positive integers' })
+  }
+
+  const placeholders = numIds.map(() => '?').join(', ')
+
+  // Delete monthly_budgets first (explicitly, before deleting categories)
+  db.prepare(`DELETE FROM monthly_budgets WHERE category_id IN (${placeholders})`).run(...numIds)
+
+  const result = db.prepare(`DELETE FROM categories WHERE id IN (${placeholders})`).run(...numIds) as { changes: number }
+
+  res.json({ deleted: result.changes })
+})
+
 // ── DELETE /api/categories/:id ────────────────────────────────────────────────
 
 router.delete('/:id', (req, res) => {

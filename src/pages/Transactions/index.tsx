@@ -557,6 +557,8 @@ export default function Transactions() {
                 <div className="min-w-0 flex-1">
                   {tx.category_id ? (
                     <CategoryBadge label={categoryLabel[tx.category_id]} />
+                  ) : tx.amount > 0 ? (
+                    <span className="text-xs font-medium text-green-400">Ready to Assign</span>
                   ) : (
                     <span className="text-xs text-gray-600 italic">Uncategorized</span>
                   )}
@@ -671,6 +673,8 @@ export default function Transactions() {
                       </select>
                     ) : tx.category_id ? (
                       <CategoryBadge label={categoryLabel[tx.category_id]} />
+                    ) : tx.amount > 0 ? (
+                      <span className="text-xs font-medium text-green-400">Ready to Assign</span>
                     ) : (
                       <span className="text-gray-600 italic">Uncategorized</span>
                     )}

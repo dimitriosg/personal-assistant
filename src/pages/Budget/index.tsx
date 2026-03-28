@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
-import { get, post, patch, put } from '../../lib/api'
+import { get, post, patch, put, delWithBody } from '../../lib/api'
 import type { BudgetData, BudgetCategory, BudgetGroup, SummaryData } from './types'
 import MonthSelector from './MonthSelector'
 import CollapsibleGroup from './CollapsibleGroup'
@@ -364,6 +364,38 @@ export default function Budget() {
     })
   }, [filteredGroups])
 
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
+
+  async function handleBulkDelete() {
+    const ids = Array.from(selectedIds)
+
+    // Optimistic update: remove categories from UI immediately
+    const prevBudget = budgetRef.current
+    setBudget(prev => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        groups: prev.groups.map(g => ({
+          ...g,
+          categories: g.categories.filter(c => !selectedIds.has(c.id)),
+        })).filter(g => g.categories.length > 0 || true),
+      }
+    })
+    setSelectedIds(new Set())
+    setShowBulkDeleteConfirm(false)
+
+    try {
+      const result = await delWithBody<{ deleted: number }>('/categories/bulk', { ids })
+      showToast({ message: `${result.deleted} ${result.deleted === 1 ? 'category' : 'categories'} deleted`, type: 'success' })
+      await fetchData(month)
+    } catch (err) {
+      // Revert optimistic update on failure
+      if (prevBudget) setBudget(prevBudget)
+      setSelectedIds(new Set(ids))
+      showToast({ message: err instanceof Error ? err.message : 'Failed to delete categories', type: 'error' })
+    }
+  }
+
   async function handleBulkSnooze() {
     try {
       await Promise.all(Array.from(selectedIds).map(id => patch(`/categories/${id}/snooze`, { snoozed: true })))
@@ -482,6 +514,12 @@ export default function Budget() {
               Hide
             </button>
             <button
+              onClick={() => setShowBulkDeleteConfirm(true)}
+              className="text-red-400 hover:text-red-300 transition-colors"
+            >
+              🗑️ Delete ({selectedIds.size})
+            </button>
+            <button
               onClick={() => setSelectedIds(new Set())}
               className="text-gray-400 hover:text-gray-300 transition-colors"
             >
@@ -586,6 +624,40 @@ export default function Budget() {
       {summary && (
         <div className="lg:hidden border-t border-gray-800 bg-gray-900/40 p-4">
           <MonthlySummary data={summary} />
+        </div>
+      )}
+
+      {/* ── Bulk Delete Confirmation Modal ───────────────────────────────── */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowBulkDeleteConfirm(false)}>
+          <div
+            className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-5"
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 className="text-base font-semibold text-gray-100 mb-2">
+              Delete {selectedIds.size} {selectedIds.size === 1 ? 'category' : 'categories'}?
+            </h2>
+            <p className="text-sm text-gray-400 mb-4">
+              All assigned amounts will be removed. This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteConfirm(false)}
+                className="px-3 py-1.5 text-sm text-gray-400 hover:text-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                className="px-4 py-1.5 text-sm font-medium bg-red-600 hover:bg-red-500
+                  text-white rounded-lg transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
