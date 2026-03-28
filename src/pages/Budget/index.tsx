@@ -375,6 +375,7 @@ export default function Budget() {
           .filter(g => g.categories.length > 0 && g.categories.every(c => selectedIds.has(c.id)))
           .map(g => g.id)
       : []
+    const emptyGroupIdSet = new Set(emptyGroupIds)
 
     // Optimistic update: remove categories from UI immediately
     const prevBudget = budgetRef.current
@@ -387,7 +388,7 @@ export default function Budget() {
             ...g,
             categories: g.categories.filter(c => !selectedIds.has(c.id)),
           }))
-          .filter(g => !emptyGroupIds.includes(g.id)),
+          .filter(g => !emptyGroupIdSet.has(g.id)),
       }
     })
     setSelectedIds(new Set())

@@ -4,6 +4,13 @@ import { get, put, patch, del, post, delWithBody } from '../../lib/api'
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
 
+interface Group {
+  id: number
+  name: string
+  sort_order: number
+  is_collapsed: boolean
+}
+
 interface Category {
   id: number
   name: string
@@ -13,13 +20,6 @@ interface Category {
 
 interface GroupWithCategories extends Group {
   categories: Category[]
-}
-
-interface Group {
-  id: number
-  name: string
-  sort_order: number
-  is_collapsed: boolean
 }
 
 type SettingsMap = Record<string, string>
