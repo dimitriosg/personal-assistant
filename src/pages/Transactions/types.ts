@@ -1,5 +1,17 @@
 // ── Transaction page types ────────────────────────────────────────────────────
 
+export interface Account {
+  id: number
+  name: string
+  type: 'budget' | 'tracking'
+  account_type: string
+  balance: number
+  currency: string
+  is_closed: number
+  sort_order: number
+  created_at: string
+}
+
 export interface Transaction {
   id: number
   date: string

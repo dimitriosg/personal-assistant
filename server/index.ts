@@ -21,6 +21,7 @@ import groupsRouter from './routes/groups'
 import categoriesRouter from './routes/categories'
 import budgetRouter from './routes/budget'
 import transactionsNewRouter from './routes/transactionsNew'
+import accountsRouter from './routes/accounts'
 import summaryRouter from './routes/summary'
 import postponeRouter from './routes/postpone'
 import calendarRouter from './routes/calendar'
@@ -44,6 +45,7 @@ app.use('/api/groups', groupsRouter)
 app.use('/api/categories', categoriesRouter)
 app.use('/api/budget', budgetRouter)
 app.use('/api/transactions', transactionsNewRouter)
+app.use('/api/accounts', accountsRouter)
 app.use('/api/summary', summaryRouter)
 app.use('/api/postpone', postponeRouter)
 app.use('/api/calendar', calendarRouter)
