@@ -26,10 +26,10 @@ function shape(t: TransactionRow) {
 }
 
 // ── GET /api/transactions ─────────────────────────────────────────────────────
-// Query params: month (YYYY-MM), category_id, payee, type (inflow/outflow)
+// Query params: month (YYYY-MM), category_id, account_id, payee, type (inflow/outflow)
 
 router.get('/', (req, res) => {
-  const { month, category_id, payee, type } = req.query as Record<string, string | undefined>
+  const { month, category_id, account_id, payee, type } = req.query as Record<string, string | undefined>
 
   let sql = 'SELECT * FROM transactions WHERE 1=1'
   const params: unknown[] = []
@@ -41,6 +41,10 @@ router.get('/', (req, res) => {
   if (category_id) {
     sql += ' AND category_id = ?'
     params.push(Number(category_id))
+  }
+  if (account_id) {
+    sql += ' AND account_id = ?'
+    params.push(Number(account_id))
   }
   if (payee) {
     sql += ' AND payee LIKE ?'

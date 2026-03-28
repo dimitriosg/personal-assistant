@@ -48,6 +48,7 @@ export type SortDir = 'asc' | 'desc'
 export interface Filters {
   month: string
   category_id: string
+  account_id: string
   payee: string
   type: '' | 'inflow' | 'outflow'
   search: string

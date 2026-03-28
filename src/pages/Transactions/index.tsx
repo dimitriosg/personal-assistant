@@ -2,8 +2,10 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { get, post, put, del } from '../../lib/api'
 import { useToast } from '../../hooks/useToast'
-import type { Transaction, CategoryGroup, SortField, SortDir, Filters } from './types'
+import type { Account, Transaction, CategoryGroup, SortField, SortDir, Filters } from './types'
 import TransactionForm, { type TransactionPayload } from './TransactionForm'
+import AccountsSidebar from '../../components/transactions/AccountsSidebar'
+import AddAccountWizard from '../../components/transactions/AddAccountWizard'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -37,16 +39,19 @@ export default function Transactions() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { showToast } = useToast()
 
+  const [accounts, setAccounts] = useState<Account[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [groups, setGroups] = useState<CategoryGroup[]>([])
   const [payees, setPayees] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showAddAccount, setShowAddAccount] = useState(false)
 
   // Filters — initialised from URL query params
   const [filters, setFilters] = useState<Filters>(() => ({
     month: searchParams.get('month') || currentMonth(),
     category_id: searchParams.get('category_id') || '',
+    account_id: searchParams.get('account_id') || '',
     payee: searchParams.get('payee') || '',
     type: (searchParams.get('type') as Filters['type']) || '',
     search: searchParams.get('search') || '',
@@ -73,6 +78,7 @@ export default function Transactions() {
     const params = new URLSearchParams()
     if (filters.month) params.set('month', filters.month)
     if (filters.category_id) params.set('category_id', filters.category_id)
+    if (filters.account_id) params.set('account_id', filters.account_id)
     if (filters.payee) params.set('payee', filters.payee)
     if (filters.type) params.set('type', filters.type)
     if (filters.search) params.set('search', filters.search)
@@ -87,6 +93,7 @@ export default function Transactions() {
       const params = new URLSearchParams()
       if (filters.month) params.set('month', filters.month)
       if (filters.category_id) params.set('category_id', filters.category_id)
+      if (filters.account_id) params.set('account_id', filters.account_id)
       if (filters.payee) params.set('payee', filters.payee)
       if (filters.type) params.set('type', filters.type)
 
@@ -96,7 +103,18 @@ export default function Transactions() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load transactions')
     }
-  }, [filters.month, filters.category_id, filters.payee, filters.type])
+  }, [filters.month, filters.category_id, filters.account_id, filters.payee, filters.type])
+
+  // ── Data fetching ──────────────────────────────────────────────────────
+
+  const fetchAccounts = useCallback(async () => {
+    try {
+      const data = await get<Account[]>('/accounts')
+      setAccounts(data)
+    } catch {
+      // Accounts sidebar is non-critical
+    }
+  }, [])
 
   useEffect(() => {
     async function loadAll() {
@@ -111,11 +129,11 @@ export default function Transactions() {
       } catch {
         // Categories/payees are nice-to-have; failure doesn't block page load
       }
-      await fetchTransactions()
+      await Promise.all([fetchAccounts(), fetchTransactions()])
       setLoading(false)
     }
     loadAll()
-  }, [fetchTransactions])
+  }, [fetchAccounts, fetchTransactions])
 
   useEffect(() => {
     fetchTransactions()
@@ -306,6 +324,11 @@ export default function Transactions() {
     setFilters(f => ({ ...f, [key]: value }))
   }
 
+  function handleAccountAdded() {
+    setShowAddAccount(false)
+    fetchAccounts()
+  }
+
   // ── Totals ──────────────────────────────────────────────────────────────
 
   const totals = useMemo(() => {
@@ -326,23 +349,64 @@ export default function Transactions() {
 
   if (loading && transactions.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-600 text-sm">Loading transactions…</div>
+      <div className="flex h-full">
+        <AccountsSidebar
+          accounts={accounts}
+          activeAccountId={filters.account_id}
+          onSelect={id => setFilter('account_id', id)}
+          onAddAccount={() => setShowAddAccount(true)}
+        />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-gray-600 text-sm">Loading transactions…</div>
+        </div>
+        {showAddAccount && (
+          <AddAccountWizard
+            onClose={() => setShowAddAccount(false)}
+            onSuccess={handleAccountAdded}
+          />
+        )}
       </div>
     )
   }
 
   if (error && transactions.length === 0) {
     return (
-      <div className="bg-red-950/40 border border-red-900 rounded-xl p-5">
-        <p className="text-red-400 text-sm font-medium">Failed to load transactions</p>
-        <p className="text-red-600 text-xs mt-1">{error}</p>
+      <div className="flex h-full">
+        <AccountsSidebar
+          accounts={accounts}
+          activeAccountId={filters.account_id}
+          onSelect={id => setFilter('account_id', id)}
+          onAddAccount={() => setShowAddAccount(true)}
+        />
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="bg-red-950/40 border border-red-900 rounded-xl p-5">
+            <p className="text-red-400 text-sm font-medium">Failed to load transactions</p>
+            <p className="text-red-600 text-xs mt-1">{error}</p>
+          </div>
+        </div>
+        {showAddAccount && (
+          <AddAccountWizard
+            onClose={() => setShowAddAccount(false)}
+            onSuccess={handleAccountAdded}
+          />
+        )}
       </div>
     )
   }
 
   return (
-    <div>
+    <div className="flex h-full">
+      {/* ── Left sub-panel: Accounts ─────────────────────────────────────── */}
+      <AccountsSidebar
+        accounts={accounts}
+        activeAccountId={filters.account_id}
+        onSelect={id => setFilter('account_id', id)}
+        onAddAccount={() => setShowAddAccount(true)}
+      />
+
+      {/* ── Main content area ───────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto px-4 py-6 pb-24 md:pb-8">
       {/* ── Header ───────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-gray-100">Transactions</h1>
@@ -676,6 +740,16 @@ export default function Transactions() {
           payees={payees}
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditingTx(null) }}
+        />
+      )}
+        </div>{/* end max-w-4xl */}
+      </div>{/* end flex-1 overflow-y-auto */}
+
+      {/* ── Add Account Wizard ──────────────────────────────────────────── */}
+      {showAddAccount && (
+        <AddAccountWizard
+          onClose={() => setShowAddAccount(false)}
+          onSuccess={handleAccountAdded}
         />
       )}
     </div>
