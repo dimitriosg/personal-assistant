@@ -50,7 +50,7 @@ function AppRoutes() {
     )
   }
 
-  function handleWizardSuccess(_account: Account) {
+  function handleWizardSuccess(account: Account) {
     setWizardOpen(false)
   }
 
