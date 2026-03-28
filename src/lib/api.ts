@@ -40,3 +40,11 @@ export function patch<T>(path: string, body: unknown): Promise<T> {
 export function del<T>(path: string): Promise<T> {
   return request<T>(path, { method: 'DELETE' })
 }
+
+export function delWithBody<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}

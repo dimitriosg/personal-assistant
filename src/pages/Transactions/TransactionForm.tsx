@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Transaction, CategoryGroup } from './types'
 import CategoryPicker from './CategoryPicker'
 import PayeeInput from './PayeeInput'
@@ -41,6 +41,13 @@ export default function TransactionForm({ transaction, groups, payees, onSave, o
   const [cleared, setCleared] = useState(transaction?.cleared ?? false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // When type switches to inflow, force category to null (Ready to Assign)
+  useEffect(() => {
+    if (type === 'inflow') {
+      setCategoryId(null)
+    }
+  }, [type])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -113,12 +120,18 @@ export default function TransactionForm({ transaction, groups, payees, onSave, o
           {/* Category */}
           <div>
             <label className="block text-xs text-gray-500 mb-1">Category</label>
-            <CategoryPicker
-              value={categoryId}
-              groups={groups}
-              onChange={setCategoryId}
-              className="w-full"
-            />
+            {type === 'inflow' ? (
+              <div className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-green-400 font-medium cursor-default select-none">
+                Ready to Assign
+              </div>
+            ) : (
+              <CategoryPicker
+                value={categoryId}
+                groups={groups}
+                onChange={setCategoryId}
+                className="w-full"
+              />
+            )}
           </div>
 
           {/* Memo */}
