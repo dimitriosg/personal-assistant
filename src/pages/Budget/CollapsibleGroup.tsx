@@ -78,6 +78,7 @@ export default function CollapsibleGroup({ group, month, onAssign, onInspect, op
             type="button"
             onClick={e => { e.stopPropagation(); onDeleteGroupConfirm(group.id, group.name, group.categories.length) }}
             title="Delete group"
+            aria-label={`Delete group ${group.name}`}
             className="text-gray-500 hover:text-red-400 text-xs transition-colors opacity-0 group-hover:opacity-100 shrink-0"
           >
             🗑️

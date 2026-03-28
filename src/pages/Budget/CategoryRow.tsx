@@ -238,6 +238,7 @@ export default memo(function CategoryRow({ category, month, onAssign, onInspect,
           type="button"
           onClick={() => setShowDeleteConfirm(true)}
           title="Delete category"
+          aria-label={`Delete category ${category.name}`}
           className="text-gray-500 hover:text-red-400 text-xs px-0.5 transition-colors opacity-0 group-hover:opacity-100"
         >
           🗑️
@@ -255,7 +256,7 @@ export default memo(function CategoryRow({ category, month, onAssign, onInspect,
       {/* Inline delete confirmation */}
       {showDeleteConfirm && (
         <div className="col-span-full bg-red-950/40 border border-red-900/50 rounded px-3 py-2 flex items-center justify-between gap-2" onClick={e => e.stopPropagation()}>
-          <span className="text-xs text-red-300">Delete {category.name}? This cannot be undone.</span>
+          <span className="text-xs text-red-300">⚠️ Delete {category.name}? This cannot be undone.</span>
           <div className="flex gap-2 shrink-0">
             <button
               type="button"

@@ -717,7 +717,11 @@ export default function Budget() {
 
       {/* ── Group Delete Confirmation Modal ────────────────────────────── */}
       {groupDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setGroupDeleteConfirm(null)}>
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          onClick={() => setGroupDeleteConfirm(null)}
+          onKeyDown={e => { if (e.key === 'Escape') setGroupDeleteConfirm(null) }}
+        >
           <div
             className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-5"
             onClick={e => e.stopPropagation()}
