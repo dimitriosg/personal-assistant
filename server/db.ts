@@ -194,6 +194,8 @@ try { db.exec("ALTER TABLE stress_tests ADD COLUMN category_id INTEGER REFERENCE
 try { db.exec("ALTER TABLE categories ADD COLUMN emoji TEXT DEFAULT NULL") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE categories ADD COLUMN snoozed INTEGER DEFAULT 0") } catch { /* already exists */ }
 try { db.exec("ALTER TABLE transactions ADD COLUMN account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL") } catch { /* already exists */ }
+try { db.exec("ALTER TABLE transactions ADD COLUMN type TEXT DEFAULT NULL") } catch { /* already exists */ }
+try { db.exec("ALTER TABLE transactions ADD COLUMN transfer_pair_id INTEGER DEFAULT NULL") } catch { /* already exists */ }
 
 // ── Default settings (INSERT OR IGNORE — never overwrite user data) ──────────
 db.exec(`

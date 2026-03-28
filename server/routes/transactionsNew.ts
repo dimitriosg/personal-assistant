@@ -14,6 +14,8 @@ interface TransactionRow {
   memo: string | null
   amount: number
   cleared: number
+  type: string | null
+  transfer_pair_id: number | null
   created_at: string
 }
 
@@ -150,6 +152,102 @@ router.post('/', (req, res) => {
   if (account_id != null) syncAccountBalance(Number(account_id))
 
   res.status(201).json(shape(created))
+})
+
+// ── POST /api/transactions/transfer ──────────────────────────────────────────
+
+router.post('/transfer', (req, res) => {
+  const { from_account_id, to_account_id, amount, date, description } =
+    req.body as Record<string, unknown>
+
+  if (!from_account_id || !to_account_id) {
+    return res.status(400).json({ error: 'from_account_id and to_account_id are required' })
+  }
+  if (Number(from_account_id) === Number(to_account_id)) {
+    return res.status(400).json({ error: 'from_account_id and to_account_id must be different' })
+  }
+  if (amount === undefined || amount === null || isNaN(Number(amount)) || Number(amount) <= 0) {
+    return res.status(400).json({ error: 'amount must be a positive number' })
+  }
+  if (!date || String(date).trim() === '' || !/^\d{4}-\d{2}-\d{2}$/.test(String(date).trim())) {
+    return res.status(400).json({ error: 'date must be in YYYY-MM-DD format' })
+  }
+
+  const fromId = Number(from_account_id)
+  const toId = Number(to_account_id)
+  const amt = Number(amount)
+  const dateStr = String(date).trim()
+  const desc = description ? String(description).trim() : null
+
+  if (!db.prepare('SELECT id FROM accounts WHERE id = ?').get(fromId)) {
+    return res.status(400).json({ error: 'from_account_id does not exist' })
+  }
+  if (!db.prepare('SELECT id FROM accounts WHERE id = ?').get(toId)) {
+    return res.status(400).json({ error: 'to_account_id does not exist' })
+  }
+
+  db.exec('BEGIN')
+  try {
+    const debitResult = db.prepare(`
+      INSERT INTO transactions (date, payee, category_id, account_id, memo, amount, cleared, type)
+      VALUES (?, ?, NULL, ?, ?, ?, 0, 'transfer_out')
+    `).run(dateStr, desc, fromId, desc, -amt) as RunResult
+
+    const debitId = Number(debitResult.lastInsertRowid)
+
+    const creditResult = db.prepare(`
+      INSERT INTO transactions (date, payee, category_id, account_id, memo, amount, cleared, type, transfer_pair_id)
+      VALUES (?, ?, NULL, ?, ?, ?, 0, 'transfer_in', ?)
+    `).run(dateStr, desc, toId, desc, amt, debitId) as RunResult
+
+    const creditId = Number(creditResult.lastInsertRowid)
+
+    // Both legs share the same transfer_pair_id (the debit row's id).
+    // The credit row was already inserted with transfer_pair_id = debitId;
+    // now update the debit row to also carry that pair id.
+    db.prepare('UPDATE transactions SET transfer_pair_id = ? WHERE id = ?').run(debitId, debitId)
+
+    db.exec('COMMIT')
+
+    syncAccountBalance(fromId)
+    syncAccountBalance(toId)
+
+    res.status(201).json({ debit_id: debitId, credit_id: creditId, transfer_pair_id: debitId })
+  } catch (err) {
+    db.exec('ROLLBACK')
+    res.status(500).json({ error: 'Failed to create transfer' })
+  }
+})
+
+// ── DELETE /api/transactions/transfer/:pairId ─────────────────────────────────
+
+router.delete('/transfer/:pairId', (req, res) => {
+  const pairId = Number(req.params.pairId)
+
+  const rows = db.prepare(
+    'SELECT * FROM transactions WHERE transfer_pair_id = ?'
+  ).all(pairId) as TransactionRow[]
+
+  if (rows.length === 0) {
+    return res.status(404).json({ error: 'Transfer not found' })
+  }
+
+  const accountIds = [...new Set(rows.map(r => r.account_id).filter((id): id is number => id !== null))]
+
+  db.exec('BEGIN')
+  try {
+    db.prepare('DELETE FROM transactions WHERE transfer_pair_id = ?').run(pairId)
+    db.exec('COMMIT')
+
+    for (const accountId of accountIds) {
+      syncAccountBalance(accountId)
+    }
+
+    res.json({ ok: true })
+  } catch {
+    db.exec('ROLLBACK')
+    res.status(500).json({ error: 'Failed to delete transfer' })
+  }
 })
 
 // ── PUT /api/transactions/:id ─────────────────────────────────────────────────
