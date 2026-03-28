@@ -10,6 +10,7 @@ interface TransactionRow {
   date: string
   payee: string | null
   category_id: number | null
+  account_id: number | null
   memo: string | null
   amount: number
   cleared: number
@@ -23,6 +24,18 @@ function shape(t: TransactionRow) {
     ...t,
     cleared: Boolean(t.cleared),
   }
+}
+
+function syncAccountBalance(accountId: number) {
+  db.prepare(`
+    UPDATE accounts
+    SET balance = (
+      SELECT COALESCE(SUM(amount), 0)
+      FROM transactions
+      WHERE account_id = ?
+    )
+    WHERE id = ?
+  `).run(accountId, accountId)
 }
 
 // ── GET /api/transactions ─────────────────────────────────────────────────────
@@ -85,7 +98,7 @@ router.get('/payees', (_req, res) => {
 // ── POST /api/transactions ────────────────────────────────────────────────────
 
 router.post('/', (req, res) => {
-  const { date, payee, category_id, memo, amount, cleared } =
+  const { date, payee, category_id, account_id, memo, amount, cleared } =
     req.body as Record<string, unknown>
 
   if (!date || String(date).trim() === '') {
@@ -111,13 +124,21 @@ router.post('/', (req, res) => {
     }
   }
 
+  // Validate account exists if provided
+  if (account_id != null) {
+    if (!db.prepare('SELECT id FROM accounts WHERE id = ?').get(Number(account_id))) {
+      return res.status(400).json({ error: 'account_id does not exist' })
+    }
+  }
+
   const result = db.prepare(`
-    INSERT INTO transactions (date, payee, category_id, memo, amount, cleared)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO transactions (date, payee, category_id, account_id, memo, amount, cleared)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(
     String(date).trim(),
     payee ? String(payee).trim() : null,
     category_id != null ? Number(category_id) : null,
+    account_id != null ? Number(account_id) : null,
     memo ? String(memo).trim() : null,
     Number(amount),
     cleared ? 1 : 0
@@ -125,6 +146,7 @@ router.post('/', (req, res) => {
 
   const created = db.prepare('SELECT * FROM transactions WHERE id = ?')
     .get(Number(result.lastInsertRowid)) as TransactionRow
+  if (created.account_id != null) syncAccountBalance(created.account_id)
   res.status(201).json(shape(created))
 })
 
@@ -135,7 +157,7 @@ router.put('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id) as TransactionRow | undefined
   if (!existing) return res.status(404).json({ error: 'Not found' })
 
-  const { date, payee, category_id, memo, amount, cleared } =
+  const { date, payee, category_id, account_id, memo, amount, cleared } =
     req.body as Record<string, unknown>
 
   if (!date || String(date).trim() === '') {
@@ -157,19 +179,34 @@ router.put('/:id', (req, res) => {
     }
   }
 
+  // Validate account exists if provided
+  if (account_id != null) {
+    if (!db.prepare('SELECT id FROM accounts WHERE id = ?').get(Number(account_id))) {
+      return res.status(400).json({ error: 'account_id does not exist' })
+    }
+  }
+
+  const oldAccountId = existing.account_id
+  const newAccountId = account_id != null ? Number(account_id) : null
+
   db.prepare(`
     UPDATE transactions
-    SET date = ?, payee = ?, category_id = ?, memo = ?, amount = ?, cleared = ?
+    SET date = ?, payee = ?, category_id = ?, account_id = ?, memo = ?, amount = ?, cleared = ?
     WHERE id = ?
   `).run(
     String(date).trim(),
     payee ? String(payee).trim() : null,
     category_id != null ? Number(category_id) : null,
+    newAccountId,
     memo ? String(memo).trim() : null,
     Number(amount),
     cleared ? 1 : 0,
     id
   )
+
+  // Sync both old and new account balances (they may differ if account was changed)
+  if (oldAccountId != null) syncAccountBalance(oldAccountId)
+  if (newAccountId != null && newAccountId !== oldAccountId) syncAccountBalance(newAccountId)
 
   const updated = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id) as TransactionRow
   res.json(shape(updated))
@@ -179,10 +216,12 @@ router.put('/:id', (req, res) => {
 
 router.delete('/:id', (req, res) => {
   const id = Number(req.params.id)
-  if (!db.prepare('SELECT id FROM transactions WHERE id = ?').get(id)) {
+  const existing = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id) as TransactionRow | undefined
+  if (!existing) {
     return res.status(404).json({ error: 'Not found' })
   }
   db.prepare('DELETE FROM transactions WHERE id = ?').run(id)
+  if (existing.account_id != null) syncAccountBalance(existing.account_id)
   res.json({ ok: true })
 })
 

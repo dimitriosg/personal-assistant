@@ -76,9 +76,24 @@ router.delete('/:id', (req, res) => {
   if (!db.prepare('SELECT id FROM category_groups WHERE id = ?').get(id)) {
     return res.status(404).json({ error: 'Not found' })
   }
-  // CASCADE will delete child categories, monthly_budgets, category_targets
+
+  // Count categories in this group
+  const catCount = (db.prepare(
+    'SELECT COUNT(*) AS cnt FROM categories WHERE group_id = ?'
+  ).get(id) as { cnt: number }).cnt
+
+  // Delete monthly_budgets for all categories in this group
+  db.prepare(
+    'DELETE FROM monthly_budgets WHERE category_id IN (SELECT id FROM categories WHERE group_id = ?)'
+  ).run(id)
+
+  // Delete categories in this group
+  db.prepare('DELETE FROM categories WHERE group_id = ?').run(id)
+
+  // Delete the group itself
   db.prepare('DELETE FROM category_groups WHERE id = ?').run(id)
-  res.json({ ok: true })
+
+  res.json({ deleted: true, categoriesRemoved: catCount })
 })
 
 // ── PATCH /api/groups/:id/sort ────────────────────────────────────────────────

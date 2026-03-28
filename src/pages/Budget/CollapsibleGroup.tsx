@@ -13,9 +13,11 @@ interface Props {
   selectedIds: Set<number>
   onSelect: (id: number, checked: boolean) => void
   onSelectGroup: (groupId: number, checked: boolean) => void
+  onDeleteCategory: (categoryId: number) => void
+  onDeleteGroupConfirm: (groupId: number, name: string, count: number) => void
 }
 
-export default function CollapsibleGroup({ group, month, onAssign, onInspect, openPickerId, setOpenPickerId, selectedIds, onSelect, onSelectGroup }: Props) {
+export default function CollapsibleGroup({ group, month, onAssign, onInspect, openPickerId, setOpenPickerId, selectedIds, onSelect, onSelectGroup, onDeleteCategory, onDeleteGroupConfirm }: Props) {
   const [collapsed, setCollapsed] = useState(group.is_collapsed)
 
   const groupCategoryIds = group.categories.map(c => c.id)
@@ -72,6 +74,14 @@ export default function CollapsibleGroup({ group, month, onAssign, onInspect, op
           <span className="text-xs text-gray-600">
             {group.categories.length}
           </span>
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); onDeleteGroupConfirm(group.id, group.name, group.categories.length) }}
+            title="Delete group"
+            className="text-gray-500 hover:text-red-400 text-xs transition-colors opacity-0 group-hover:opacity-100 shrink-0"
+          >
+            🗑️
+          </button>
         </div>
 
         <div className="text-right">
@@ -101,6 +111,7 @@ export default function CollapsibleGroup({ group, month, onAssign, onInspect, op
               setOpenPickerId={setOpenPickerId}
               selectedIds={selectedIds}
               onSelect={onSelect}
+              onDeleteCategory={onDeleteCategory}
             />
           ))}
         </div>

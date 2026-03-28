@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
-import { get, post, patch, put, delWithBody } from '../../lib/api'
+import { get, post, patch, put, del, delWithBody } from '../../lib/api'
 import type { BudgetData, BudgetCategory, BudgetGroup, SummaryData } from './types'
 import MonthSelector from './MonthSelector'
 import CollapsibleGroup from './CollapsibleGroup'
@@ -416,6 +416,58 @@ export default function Budget() {
     }
   }
 
+  // ── Single category delete ──────────────────────────────────────────────────
+
+  const handleDeleteCategory = useCallback(async (categoryId: number) => {
+    const prevBudget = budgetRef.current
+    // Optimistic update: remove the category from UI
+    setBudget(prev => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        groups: prev.groups.map(g => ({
+          ...g,
+          categories: g.categories.filter(c => c.id !== categoryId),
+        })),
+      }
+    })
+
+    try {
+      await del(`/categories/${categoryId}`)
+      showToast({ message: 'Category deleted', type: 'success' })
+      await fetchData(month)
+    } catch (err) {
+      if (prevBudget) setBudget(prevBudget)
+      showToast({ message: err instanceof Error ? err.message : 'Failed to delete category', type: 'error' })
+    }
+  }, [month, fetchData, showToast])
+
+  // ── Group delete ────────────────────────────────────────────────────────────
+
+  const [groupDeleteConfirm, setGroupDeleteConfirm] = useState<{ id: number; name: string; count: number } | null>(null)
+
+  const handleDeleteGroup = useCallback(async (groupId: number) => {
+    const prevBudget = budgetRef.current
+    // Optimistic update: remove the group from UI
+    setBudget(prev => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        groups: prev.groups.filter(g => g.id !== groupId),
+      }
+    })
+    setGroupDeleteConfirm(null)
+
+    try {
+      await del<{ deleted: boolean; categoriesRemoved: number }>(`/groups/${groupId}`)
+      showToast({ message: 'Group deleted', type: 'success' })
+      await fetchData(month)
+    } catch (err) {
+      if (prevBudget) setBudget(prevBudget)
+      showToast({ message: err instanceof Error ? err.message : 'Failed to delete group', type: 'error' })
+    }
+  }, [month, fetchData, showToast])
+
   // ── Loading state ──────────────────────────────────────────────────────────
   if (loading && !budget) {
     return (
@@ -566,6 +618,8 @@ export default function Budget() {
               selectedIds={selectedIds}
               onSelect={handleSelect}
               onSelectGroup={handleSelectGroup}
+              onDeleteCategory={handleDeleteCategory}
+              onDeleteGroupConfirm={(id, name, count) => setGroupDeleteConfirm({ id, name, count })}
             />
           ))}
 
@@ -651,6 +705,40 @@ export default function Budget() {
               <button
                 type="button"
                 onClick={handleBulkDelete}
+                className="px-4 py-1.5 text-sm font-medium bg-red-600 hover:bg-red-500
+                  text-white rounded-lg transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Group Delete Confirmation Modal ────────────────────────────── */}
+      {groupDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setGroupDeleteConfirm(null)}>
+          <div
+            className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-5"
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 className="text-base font-semibold text-gray-100 mb-2">
+              Delete group "{groupDeleteConfirm.name}" and all {groupDeleteConfirm.count} {groupDeleteConfirm.count === 1 ? 'category' : 'categories'}?
+            </h2>
+            <p className="text-sm text-gray-400 mb-4">
+              This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setGroupDeleteConfirm(null)}
+                className="px-3 py-1.5 text-sm text-gray-400 hover:text-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteGroup(groupDeleteConfirm.id)}
                 className="px-4 py-1.5 text-sm font-medium bg-red-600 hover:bg-red-500
                   text-white rounded-lg transition-colors"
               >

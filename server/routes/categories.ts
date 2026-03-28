@@ -150,7 +150,8 @@ router.delete('/:id', (req, res) => {
   if (!db.prepare('SELECT id FROM categories WHERE id = ?').get(id)) {
     return res.status(404).json({ error: 'Not found' })
   }
-  // CASCADE will delete monthly_budgets, category_targets; transactions get NULL
+  // Explicitly clean up monthly_budgets before deleting the category
+  db.prepare('DELETE FROM monthly_budgets WHERE category_id = ?').run(id)
   db.prepare('DELETE FROM categories WHERE id = ?').run(id)
   res.json({ ok: true })
 })

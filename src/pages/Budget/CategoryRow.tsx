@@ -19,12 +19,14 @@ interface Props {
   setOpenPickerId: (id: number | null) => void
   selectedIds: Set<number>
   onSelect: (id: number, checked: boolean) => void
+  onDeleteCategory: (categoryId: number) => void
 }
 
-export default memo(function CategoryRow({ category, month, onAssign, onInspect, openPickerId, setOpenPickerId, selectedIds, onSelect }: Props) {
+export default memo(function CategoryRow({ category, month, onAssign, onInspect, openPickerId, setOpenPickerId, selectedIds, onSelect, onDeleteCategory }: Props) {
   const [editing, setEditing] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const [localEmoji, setLocalEmoji] = useState<string | null>(category.emoji)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   // Displayed value when NOT editing — kept in state so prop updates (silentRefetch,
   // Undo) trigger a re-render and paint the correct number immediately.
@@ -230,17 +232,48 @@ export default memo(function CategoryRow({ category, month, onAssign, onInspect,
         />
       </div>
 
-      {/* Inspect button — sole trigger for Inspector panel */}
-      <div className="flex items-center justify-center" onClick={e => e.stopPropagation()}>
+      {/* Inspect + Delete buttons */}
+      <div className="flex items-center justify-center gap-0.5" onClick={e => e.stopPropagation()}>
+        <button
+          type="button"
+          onClick={() => setShowDeleteConfirm(true)}
+          title="Delete category"
+          className="text-gray-500 hover:text-red-400 text-xs px-0.5 transition-colors opacity-0 group-hover:opacity-100"
+        >
+          🗑️
+        </button>
         <button
           type="button"
           onClick={() => onInspect(category.id)}
           title="Inspect category"
-          className="text-gray-500 hover:text-white text-xs px-1 transition-colors opacity-0 group-hover:opacity-100"
+          className="text-gray-500 hover:text-white text-xs px-0.5 transition-colors opacity-0 group-hover:opacity-100"
         >
           ℹ
         </button>
       </div>
+
+      {/* Inline delete confirmation */}
+      {showDeleteConfirm && (
+        <div className="col-span-full bg-red-950/40 border border-red-900/50 rounded px-3 py-2 flex items-center justify-between gap-2" onClick={e => e.stopPropagation()}>
+          <span className="text-xs text-red-300">Delete {category.name}? This cannot be undone.</span>
+          <div className="flex gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(false)}
+              className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowDeleteConfirm(false); onDeleteCategory(category.id) }}
+              className="text-xs text-red-400 hover:text-red-300 font-medium transition-colors"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 })
