@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { get, post, put, del } from '../../lib/api'
+import { useToast } from '../../hooks/useToast'
 import type { Transaction, CategoryGroup, SortField, SortDir, Filters } from './types'
 import TransactionForm, { type TransactionPayload } from './TransactionForm'
 
@@ -32,20 +34,23 @@ function buildCategoryLabel(groups: CategoryGroup[]): Record<number, string> {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function Transactions() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { showToast } = useToast()
+
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [groups, setGroups] = useState<CategoryGroup[]>([])
   const [payees, setPayees] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Filters
-  const [filters, setFilters] = useState<Filters>({
-    month: currentMonth(),
-    category_id: '',
-    payee: '',
-    type: '',
-    search: '',
-  })
+  // Filters — initialised from URL query params
+  const [filters, setFilters] = useState<Filters>(() => ({
+    month: searchParams.get('month') || currentMonth(),
+    category_id: searchParams.get('category_id') || '',
+    payee: searchParams.get('payee') || '',
+    type: (searchParams.get('type') as Filters['type']) || '',
+    search: searchParams.get('search') || '',
+  }))
 
   // Sorting
   const [sortField, setSortField] = useState<SortField>('date')
@@ -61,6 +66,18 @@ export default function Transactions() {
   const [inlineValue, setInlineValue] = useState('')
 
   const categoryLabel = useMemo(() => buildCategoryLabel(groups), [groups])
+
+  // ── Sync filters → URL query params ────────────────────────────────────
+
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (filters.month) params.set('month', filters.month)
+    if (filters.category_id) params.set('category_id', filters.category_id)
+    if (filters.payee) params.set('payee', filters.payee)
+    if (filters.type) params.set('type', filters.type)
+    if (filters.search) params.set('search', filters.search)
+    setSearchParams(params, { replace: true })
+  }, [filters, setSearchParams])
 
   // ── Data fetching ──────────────────────────────────────────────────────
 
@@ -162,25 +179,54 @@ export default function Transactions() {
   // ── CRUD handlers ──────────────────────────────────────────────────────
 
   async function handleSave(data: TransactionPayload) {
-    if (editingTx) {
-      await put(`/transactions/${editingTx.id}`, data)
-    } else {
-      await post('/transactions', data)
-    }
+    const isEdit = editingTx !== null
     setShowForm(false)
     setEditingTx(null)
-    await fetchTransactions()
-    // Refresh payees
-    try { setPayees(await get<string[]>('/transactions/payees')) } catch { /* payee refresh is best-effort */ }
+
+    if (isEdit && editingTx) {
+      // Optimistic update
+      setTransactions(prev =>
+        prev.map(t =>
+          t.id === editingTx.id
+            ? { ...t, ...data, cleared: !!data.cleared }
+            : t
+        )
+      )
+    }
+
+    try {
+      if (isEdit && editingTx) {
+        await put(`/transactions/${editingTx.id}`, data)
+        showToast({ message: 'Transaction updated', type: 'success' })
+      } else {
+        await post('/transactions', data)
+        showToast({ message: 'Transaction added', type: 'success' })
+      }
+      await fetchTransactions()
+      try { setPayees(await get<string[]>('/transactions/payees')) } catch { /* payee refresh is best-effort */ }
+    } catch (err) {
+      showToast({ message: err instanceof Error ? err.message : 'Failed to save', type: 'error' })
+      await fetchTransactions() // revert optimistic on failure
+    }
   }
 
   async function handleDelete(id: number) {
     if (!confirm('Delete this transaction?')) return
+
+    // Optimistic remove — capture snapshot from functional updater
+    let snapshot: Transaction[] = []
+    setTransactions(prev => {
+      snapshot = prev
+      return prev.filter(tx => tx.id !== id)
+    })
+
     try {
       await del(`/transactions/${id}`)
+      showToast({ message: 'Transaction deleted', type: 'success' })
       await fetchTransactions()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete')
+      setTransactions(snapshot) // revert on failure
+      showToast({ message: err instanceof Error ? err.message : 'Failed to delete', type: 'error' })
     }
   }
 
@@ -224,14 +270,23 @@ export default function Transactions() {
     else if (inlineField === 'memo') updated.memo = inlineValue.trim() || null
     else if (inlineField === 'category_id') updated.category_id = inlineValue ? Number(inlineValue) : null
 
+    // Optimistic update
+    setTransactions(prev =>
+      prev.map(t =>
+        t.id === tx.id ? { ...t, [inlineField]: updated[inlineField] } : t
+      )
+    )
+
     try {
       await put(`/transactions/${tx.id}`, updated)
+      showToast({ message: 'Transaction updated', type: 'success' })
       await fetchTransactions()
       if (inlineField === 'payee') {
         try { setPayees(await get<string[]>('/transactions/payees')) } catch { /* payee refresh is best-effort */ }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Inline edit failed')
+      showToast({ message: err instanceof Error ? err.message : 'Inline edit failed', type: 'error' })
+      await fetchTransactions() // revert
     }
 
     setInlineEditId(null)
@@ -250,6 +305,22 @@ export default function Transactions() {
   function setFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
     setFilters(f => ({ ...f, [key]: value }))
   }
+
+  // ── Totals ──────────────────────────────────────────────────────────────
+
+  const totals = useMemo(() => {
+    let income = 0
+    let expenses = 0
+    for (const t of filtered) {
+      if (t.amount > 0) income += t.amount
+      else expenses += t.amount
+    }
+    return {
+      income: +income.toFixed(2),
+      expenses: +expenses.toFixed(2),
+      net: +(income + expenses).toFixed(2),
+    }
+  }, [filtered])
 
   // ── Render ─────────────────────────────────────────────────────────────
 
@@ -575,13 +646,25 @@ export default function Transactions() {
         </table>
       </div>
 
-      {/* Summary row */}
+      {/* Totals row */}
       {filtered.length > 0 && (
-        <div className="flex justify-between items-center mt-3 text-xs text-gray-500 px-1">
-          <span>{filtered.length} transaction{filtered.length !== 1 ? 's' : ''}</span>
-          <span>
-            Total: {fmt(filtered.reduce((s, t) => s + t.amount, 0))}
-          </span>
+        <div className="mt-3 rounded-xl border border-gray-800 bg-gray-900/60 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-sm">
+            <span className="text-gray-500 text-xs">
+              {filtered.length} transaction{filtered.length !== 1 ? 's' : ''}
+            </span>
+            <div className="flex gap-6">
+              <span className="text-green-400 tabular-nums">
+                Income: {fmt(totals.income)}
+              </span>
+              <span className="text-red-400 tabular-nums">
+                Expenses: {fmt(Math.abs(totals.expenses))}
+              </span>
+              <span className={`font-medium tabular-nums ${totals.net < 0 ? 'text-red-400' : 'text-gray-200'}`}>
+                Net: {fmt(totals.net)}
+              </span>
+            </div>
+          </div>
         </div>
       )}
 
