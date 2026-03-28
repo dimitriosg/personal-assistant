@@ -1,7 +1,12 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { patch, del } from '../../lib/api'
 import { useToast } from '../../hooks/useToast'
 import type { Account } from '../../pages/Transactions/types'
+
+// Custom event fired after any account mutation so other pages (Budget) can re-fetch
+function notifyAccountsChanged() {
+  window.dispatchEvent(new CustomEvent('accountsChanged'))
+}
 
 // ── Emoji helpers ──────────────────────────────────────────────────────────────
 
@@ -68,6 +73,40 @@ export default function AccountsSidebar({
   const [deletingAccount, setDeletingAccount] = useState<Account | null>(null)
   const [deleting, setDeleting] = useState(false)
 
+  // Resizable sidebar
+  const [sidebarWidth, setSidebarWidth] = useState(200)
+  const isDragging = useRef(false)
+  const dragStartX = useRef(0)
+  const dragStartW = useRef(0)
+  // Mirror width in a ref so the drag handler never captures a stale closure value
+  const widthRef = useRef(200)
+  widthRef.current = sidebarWidth
+
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    isDragging.current = true
+    dragStartX.current = e.clientX
+    dragStartW.current = widthRef.current
+    e.preventDefault()
+  }, [])
+
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!isDragging.current) return
+      const delta = e.clientX - dragStartX.current
+      const newW = Math.min(360, Math.max(140, dragStartW.current + delta))
+      setSidebarWidth(newW)
+    }
+    function onMouseUp() {
+      isDragging.current = false
+    }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [])
+
   const budgetAccounts = accounts.filter(a => a.type === 'budget')
   const trackingAccounts = accounts.filter(a => a.type === 'tracking')
 
@@ -81,11 +120,6 @@ export default function AccountsSidebar({
   }
 
   function openDelete(account: Account) {
-    // Guard: cannot delete the last budget account
-    if (account.type === 'budget' && budgetAccounts.length === 1) {
-      showToast({ message: 'You must keep at least one budget account', type: 'error' })
-      return
-    }
     setDeletingAccount(account)
   }
 
@@ -99,6 +133,7 @@ export default function AccountsSidebar({
         balance: parseFloat(editBalance) || 0,
       })
       onAccountUpdated(updated)
+      notifyAccountsChanged()
       showToast({ message: 'Account updated', type: 'success' })
       setEditingAccount(null)
     } catch (err) {
@@ -117,6 +152,7 @@ export default function AccountsSidebar({
     try {
       await del(`/accounts/${deletingAccount.id}`)
       onAccountDeleted(deletingAccount.id)
+      notifyAccountsChanged()
       showToast({ message: 'Account deleted', type: 'success' })
       setDeletingAccount(null)
     } catch (err) {
@@ -130,7 +166,17 @@ export default function AccountsSidebar({
   }
 
   return (
-    <aside className="hidden md:flex flex-col w-[200px] shrink-0 bg-gray-900/60 border-r border-gray-800">
+    <aside
+      className="relative hidden md:flex flex-col shrink-0 bg-gray-900/60 border-r border-gray-800"
+      style={{ width: sidebarWidth }}
+    >
+      {/* Drag handle — right edge */}
+      <div
+        onMouseDown={handleDragStart}
+        className="absolute top-0 right-0 h-full w-1 cursor-col-resize select-none bg-transparent hover:bg-indigo-500/40 transition-colors z-10"
+        title="Drag to resize"
+      />
+
       {/* Add Account button */}
       <div className="p-3">
         <button
@@ -198,7 +244,7 @@ export default function AccountsSidebar({
         )}
 
         {accounts.length === 0 && (
-          <p className="text-xs text-gray-600 text-center mt-6">No accounts yet</p>
+          <p className="text-xs text-gray-500 text-center mt-6 px-2">No accounts yet. Add one to get started.</p>
         )}
       </div>
 
