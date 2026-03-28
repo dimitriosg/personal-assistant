@@ -166,7 +166,12 @@ router.get('/:month', (req, res) => {
   const totalIncome = incomeRow.total + incomeFromTable.total
   const totalAssigned = budgets.reduce((s, b) => s + b.assigned, 0)
 
-  // Ready to Assign = total income - total assigned (across all months up to and including current)
+  // Ready to Assign = budget account balances + total income - total assigned
+  // Only budget accounts (not tracking) count toward the budget
+  const budgetAccountsRow = db.prepare(
+    "SELECT COALESCE(SUM(balance), 0) AS total FROM accounts WHERE type = 'budget' AND is_closed = 0"
+  ).get() as { total: number }
+
   const allAssignedRow = db.prepare(`
     SELECT COALESCE(SUM(assigned), 0) AS total FROM monthly_budgets WHERE month <= ?
   `).get(month) as { total: number }
@@ -192,7 +197,7 @@ router.get('/:month', (req, res) => {
     return total
   })()
 
-  const readyToAssign = +(allIncomeRow.total + incomeTableTotal - allAssignedRow.total).toFixed(2)
+  const readyToAssign = +(budgetAccountsRow.total + allIncomeRow.total + incomeTableTotal - allAssignedRow.total).toFixed(2)
 
   // Build response
   const groupsData = groups.map(g => {

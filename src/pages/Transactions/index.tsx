@@ -39,6 +39,11 @@ export default function Transactions() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { showToast } = useToast()
 
+  // account_id is derived reactively from URL params — NOT stored in local state.
+  // This ensures clicking a sidebar row (which calls setSearchParams) immediately
+  // triggers a re-fetch without going through a local-state round-trip.
+  const accountId = searchParams.get('account_id') ?? ''
+
   const [accounts, setAccounts] = useState<Account[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [groups, setGroups] = useState<CategoryGroup[]>([])
@@ -47,11 +52,11 @@ export default function Transactions() {
   const [error, setError] = useState<string | null>(null)
   const [showAddAccount, setShowAddAccount] = useState(false)
 
-  // Filters — initialised from URL query params
+  // Filters — initialised from URL query params (account_id handled separately above)
   const [filters, setFilters] = useState<Filters>(() => ({
     month: searchParams.get('month') || currentMonth(),
     category_id: searchParams.get('category_id') || '',
-    account_id: searchParams.get('account_id') || '',
+    account_id: '',
     payee: searchParams.get('payee') || '',
     type: (searchParams.get('type') as Filters['type']) || '',
     search: searchParams.get('search') || '',
@@ -78,12 +83,17 @@ export default function Transactions() {
     const params = new URLSearchParams()
     if (filters.month) params.set('month', filters.month)
     if (filters.category_id) params.set('category_id', filters.category_id)
-    if (filters.account_id) params.set('account_id', filters.account_id)
+    // account_id is URL-driven — preserve whatever is currently in the URL
+    if (accountId) params.set('account_id', accountId)
     if (filters.payee) params.set('payee', filters.payee)
     if (filters.type) params.set('type', filters.type)
     if (filters.search) params.set('search', filters.search)
     setSearchParams(params, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, setSearchParams])
+  // NOTE: accountId intentionally omitted from deps — it is read from the current
+  // URL inside the effect body to preserve it when other filters change.
+  // account_id is managed exclusively by setSearchParams in the sidebar.
 
   // ── Data fetching ──────────────────────────────────────────────────────
 
@@ -93,7 +103,7 @@ export default function Transactions() {
       const params = new URLSearchParams()
       if (filters.month) params.set('month', filters.month)
       if (filters.category_id) params.set('category_id', filters.category_id)
-      if (filters.account_id) params.set('account_id', filters.account_id)
+      if (accountId) params.set('account_id', accountId)
       if (filters.payee) params.set('payee', filters.payee)
       if (filters.type) params.set('type', filters.type)
 
@@ -103,7 +113,7 @@ export default function Transactions() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load transactions')
     }
-  }, [filters.month, filters.category_id, filters.account_id, filters.payee, filters.type])
+  }, [filters.month, filters.category_id, accountId, filters.payee, filters.type])
 
   // ── Data fetching ──────────────────────────────────────────────────────
 
@@ -116,6 +126,8 @@ export default function Transactions() {
     }
   }, [])
 
+  // Initial load: categories, payees, accounts — runs once on mount.
+  // fetchTransactions is intentionally excluded: the standalone effect below handles it.
   useEffect(() => {
     async function loadAll() {
       setLoading(true)
@@ -129,12 +141,13 @@ export default function Transactions() {
       } catch {
         // Categories/payees are nice-to-have; failure doesn't block page load
       }
-      await Promise.all([fetchAccounts(), fetchTransactions()])
+      await fetchAccounts()
       setLoading(false)
     }
     loadAll()
-  }, [fetchAccounts, fetchTransactions])
+  }, [fetchAccounts])
 
+  // Re-fetch transactions whenever any filter changes (including accountId from URL)
   useEffect(() => {
     fetchTransactions()
   }, [fetchTransactions])
@@ -324,6 +337,13 @@ export default function Transactions() {
     setFilters(f => ({ ...f, [key]: value }))
   }
 
+  function handleSelectAccount(id: string) {
+    const p = new URLSearchParams(searchParams)
+    if (id) p.set('account_id', id)
+    else p.delete('account_id')
+    setSearchParams(p, { replace: true })
+  }
+
   function handleAccountAdded() {
     setShowAddAccount(false)
     fetchAccounts()
@@ -352,8 +372,8 @@ export default function Transactions() {
       <div className="flex h-full">
         <AccountsSidebar
           accounts={accounts}
-          activeAccountId={filters.account_id}
-          onSelect={id => setFilter('account_id', id)}
+          activeAccountId={accountId}
+          onSelect={handleSelectAccount}
           onAddAccount={() => setShowAddAccount(true)}
         />
         <div className="flex-1 flex items-center justify-center">
@@ -374,8 +394,8 @@ export default function Transactions() {
       <div className="flex h-full">
         <AccountsSidebar
           accounts={accounts}
-          activeAccountId={filters.account_id}
-          onSelect={id => setFilter('account_id', id)}
+          activeAccountId={accountId}
+          onSelect={handleSelectAccount}
           onAddAccount={() => setShowAddAccount(true)}
         />
         <div className="flex-1 flex items-center justify-center p-6">
@@ -399,8 +419,8 @@ export default function Transactions() {
       {/* ── Left sub-panel: Accounts ─────────────────────────────────────── */}
       <AccountsSidebar
         accounts={accounts}
-        activeAccountId={filters.account_id}
-        onSelect={id => setFilter('account_id', id)}
+        activeAccountId={accountId}
+        onSelect={handleSelectAccount}
         onAddAccount={() => setShowAddAccount(true)}
       />
 

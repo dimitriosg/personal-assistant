@@ -14,12 +14,22 @@ function accountEmoji(account: Account): string {
   return '📊'
 }
 
+// ── Currency formatters ────────────────────────────────────────────────────────
+
+// Cache formatters by currency code to avoid repeated Intl.NumberFormat construction
+const formatterCache = new Map<string, Intl.NumberFormat>()
+
+function getFormatter(currency: string): Intl.NumberFormat {
+  let fmt = formatterCache.get(currency)
+  if (!fmt) {
+    fmt = new Intl.NumberFormat('en-IE', { style: 'currency', currency, minimumFractionDigits: 2 })
+    formatterCache.set(currency, fmt)
+  }
+  return fmt
+}
+
 function fmtBalance(n: number, currency: string): string {
-  return new Intl.NumberFormat('en-IE', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-  }).format(n)
+  return getFormatter(currency).format(n)
 }
 
 // ── Props ──────────────────────────────────────────────────────────────────────
@@ -41,6 +51,9 @@ export default function AccountsSidebar({
 }: AccountsSidebarProps) {
   const budgetAccounts = accounts.filter(a => a.type === 'budget')
   const trackingAccounts = accounts.filter(a => a.type === 'tracking')
+
+  const budgetTotal = budgetAccounts.reduce((sum, a) => sum + a.balance, 0)
+  const trackingTotal = trackingAccounts.reduce((sum, a) => sum + a.balance, 0)
 
   return (
     <aside className="hidden md:flex flex-col w-[200px] shrink-0 bg-gray-900/60 border-r border-gray-800">
@@ -71,7 +84,7 @@ export default function AccountsSidebar({
         {/* Budget Accounts */}
         {budgetAccounts.length > 0 && (
           <>
-            <SectionLabel>BUDGET ACCOUNTS</SectionLabel>
+            <SectionLabel total={budgetTotal}>BUDGET ACCOUNTS</SectionLabel>
             {budgetAccounts.map(a => (
               <AccountRow
                 key={a.id}
@@ -90,7 +103,7 @@ export default function AccountsSidebar({
         {/* Tracking Accounts */}
         {trackingAccounts.length > 0 && (
           <>
-            <SectionLabel>TRACKING ACCOUNTS</SectionLabel>
+            <SectionLabel total={trackingTotal}>TRACKING ACCOUNTS</SectionLabel>
             {trackingAccounts.map(a => (
               <AccountRow
                 key={a.id}
@@ -116,11 +129,14 @@ export default function AccountsSidebar({
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function SectionLabel({ children, total }: { children: React.ReactNode; total: number }) {
   return (
-    <div className="px-2 pt-3 pb-1">
+    <div className="px-2 pt-3 pb-1 flex items-center justify-between">
       <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wider">
         {children}
+      </span>
+      <span className={`text-[10px] tabular-nums font-medium ${total < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+        {fmtBalance(total, 'EUR')}
       </span>
     </div>
   )

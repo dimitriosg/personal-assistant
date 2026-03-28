@@ -34,6 +34,11 @@ function calculateReadyToAssign(month: string): number {
     'SELECT COALESCE(SUM(amount), 0) AS total FROM transactions WHERE amount > 0 AND category_id IS NULL AND date <= ?'
   ).get(month + '-31') as { total: number }
 
+  // Only budget account opening balances count toward the budget (not tracking)
+  const budgetAccountsRow = db.prepare(
+    "SELECT COALESCE(SUM(balance), 0) AS total FROM accounts WHERE type = 'budget' AND is_closed = 0"
+  ).get() as { total: number }
+
   const incomeRows = db.prepare('SELECT * FROM income').all() as IncomeRow[]
   let incomeTableTotal = 0
   for (let m = 1; m <= monthNum; m++) {
@@ -43,7 +48,7 @@ function calculateReadyToAssign(month: string): number {
     }
   }
 
-  return +(allTxIncome.total + incomeTableTotal - allAssigned.total).toFixed(2)
+  return +(budgetAccountsRow.total + allTxIncome.total + incomeTableTotal - allAssigned.total).toFixed(2)
 }
 
 // ── Build formatted budget context string ─────────────────────────────────────
