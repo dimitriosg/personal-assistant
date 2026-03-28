@@ -6,3 +6,4 @@ data/*.db-wal
 .env
 .claude/settings.local.json
 tmp_screenshots/
+db.sqlite
