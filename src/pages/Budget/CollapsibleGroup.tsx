@@ -13,9 +13,10 @@ interface Props {
   selectedIds: Set<number>
   onSelect: (id: number, checked: boolean) => void
   onSelectGroup: (groupId: number, checked: boolean) => void
+  onDeleteGroup: (groupId: number, groupName: string) => void
 }
 
-export default function CollapsibleGroup({ group, month, onAssign, onInspect, openPickerId, setOpenPickerId, selectedIds, onSelect, onSelectGroup }: Props) {
+export default function CollapsibleGroup({ group, month, onAssign, onInspect, openPickerId, setOpenPickerId, selectedIds, onSelect, onSelectGroup, onDeleteGroup }: Props) {
   const [collapsed, setCollapsed] = useState(group.is_collapsed)
 
   const groupCategoryIds = group.categories.map(c => c.id)
@@ -83,8 +84,19 @@ export default function CollapsibleGroup({ group, month, onAssign, onInspect, op
         <div className="text-right">
           <AmountCell value={group.totals.available} variant="available" bold />
         </div>
-        {/* Spacer for the [ℹ] inspect button column */}
-        <div />
+        {/* Delete group button */}
+        <div className="flex items-center justify-center" onClick={e => e.stopPropagation()}>
+          <button
+            type="button"
+            onClick={() => onDeleteGroup(group.id, group.name)}
+            title="Delete group"
+            className="text-gray-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 p-0.5"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+              <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.519.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 01.78.72l.5 6a.75.75 0 01-1.49.12l-.5-6a.75.75 0 01.71-.84zm2.84 0a.75.75 0 01.71.84l-.5 6a.75.75 0 11-1.49-.12l.5-6a.75.75 0 01.78-.72z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Category rows */}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { get, put, patch, del, post } from '../../lib/api'
+import { get, put, patch, del, post, delWithBody } from '../../lib/api'
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
 
@@ -9,6 +9,17 @@ interface Group {
   name: string
   sort_order: number
   is_collapsed: boolean
+}
+
+interface Category {
+  id: number
+  name: string
+  group_id: number
+  sort_order: number
+}
+
+interface GroupWithCategories extends Group {
+  categories: Category[]
 }
 
 type SettingsMap = Record<string, string>
@@ -47,7 +58,7 @@ export default function Settings() {
   const [settingsSaved, setSettingsSaved] = useState(false)
 
   // ── Groups state ────────────────────────────────────────────────────────
-  const [groups, setGroups] = useState<Group[]>([])
+  const [groups, setGroups] = useState<GroupWithCategories[]>([])
   const [groupsLoading, setGroupsLoading] = useState(true)
   const [groupsError, setGroupsError] = useState('')
   const [editingGroupId, setEditingGroupId] = useState<number | null>(null)
@@ -96,7 +107,7 @@ export default function Settings() {
     setGroupsLoading(true)
     setGroupsError('')
     try {
-      const data = await get<Group[]>('/groups')
+      const data = await get<GroupWithCategories[]>('/categories')
       setGroups(data.sort((a, b) => a.sort_order - b.sort_order))
     } catch (err) {
       setGroupsError(errMsg(err))
@@ -168,7 +179,7 @@ export default function Settings() {
 
   /* ── Group handlers ─────────────────────────────────────────────────── */
 
-  function startEditGroup(group: Group) {
+  function startEditGroup(group: GroupWithCategories) {
     setEditingGroupId(group.id)
     setEditingGroupName(group.name)
     setTimeout(() => editInputRef.current?.focus(), 0)
@@ -222,7 +233,7 @@ export default function Settings() {
     }
   }
 
-  async function deleteGroup(group: Group) {
+  async function deleteGroup(group: GroupWithCategories) {
     const confirmed = window.confirm(
       `Delete "${group.name}"?\n\nThis will also delete all categories, budgets, and targets in this group.`,
     )
@@ -243,12 +254,28 @@ export default function Settings() {
     try {
       setGroupsError('')
       const created = await post<Group>('/groups', { name: trimmed })
-      setGroups(prev => [...prev, created].sort((a, b) => a.sort_order - b.sort_order))
+      setGroups(prev => [...prev, { ...created, categories: [] }].sort((a, b) => a.sort_order - b.sort_order))
       setNewGroupName('')
     } catch (err) {
       setGroupsError(errMsg(err))
     } finally {
       setAddingGroup(false)
+    }
+  }
+
+  async function deleteGroupCategories(group: GroupWithCategories) {
+    const catIds = group.categories.map(c => c.id)
+    if (catIds.length === 0) return
+    const confirmed = window.confirm(
+      `Delete all ${catIds.length} ${catIds.length === 1 ? 'category' : 'categories'} in "${group.name}"?\n\nThe group itself will remain.`,
+    )
+    if (!confirmed) return
+    try {
+      setGroupsError('')
+      await delWithBody('/categories/bulk', { ids: catIds })
+      setGroups(prev => prev.map(g => g.id === group.id ? { ...g, categories: [] } : g))
+    } catch (err) {
+      setGroupsError(errMsg(err))
     }
   }
 
@@ -438,68 +465,104 @@ export default function Settings() {
               {groups.map((group, idx) => (
                 <div
                   key={group.id}
-                  className="flex items-center gap-2 py-1.5 group"
+                  className="border border-gray-800 rounded-lg overflow-hidden mb-2"
                 >
-                  {/* Group name (inline edit) */}
-                  {editingGroupId === group.id ? (
-                    <input
-                      ref={editInputRef}
-                      type="text"
-                      className="flex-1 bg-gray-950 border border-indigo-500 rounded px-2 py-1 text-sm text-gray-100 focus:outline-none"
-                      value={editingGroupName}
-                      onChange={e => setEditingGroupName(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') void saveGroupName(group.id)
-                        if (e.key === 'Escape') setEditingGroupId(null)
-                      }}
-                      onBlur={() => void saveGroupName(group.id)}
-                    />
-                  ) : (
+                  {/* Group header row */}
+                  <div className="flex items-center gap-2 px-3 py-2 bg-gray-800/40 group">
+                    {/* Group name (inline edit) */}
+                    {editingGroupId === group.id ? (
+                      <input
+                        ref={editInputRef}
+                        type="text"
+                        className="flex-1 bg-gray-950 border border-indigo-500 rounded px-2 py-1 text-sm text-gray-100 focus:outline-none"
+                        value={editingGroupName}
+                        onChange={e => setEditingGroupName(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') void saveGroupName(group.id)
+                          if (e.key === 'Escape') setEditingGroupId(null)
+                        }}
+                        onBlur={() => void saveGroupName(group.id)}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className="flex-1 text-left text-sm font-medium text-gray-200 hover:text-indigo-400 transition-colors truncate"
+                        onClick={() => startEditGroup(group)}
+                        title="Click to rename"
+                      >
+                        {group.name}
+                        <span className="ml-1.5 text-xs font-normal text-gray-600">
+                          {group.categories.length} {group.categories.length === 1 ? 'category' : 'categories'}
+                        </span>
+                      </button>
+                    )}
+
+                    {/* Reorder buttons */}
                     <button
                       type="button"
-                      className="flex-1 text-left text-sm text-gray-200 hover:text-indigo-400 transition-colors truncate"
-                      onClick={() => startEditGroup(group)}
-                      title="Click to rename"
+                      className={btnGhost}
+                      disabled={idx === 0}
+                      onClick={() => void moveGroup(group.id, 'up')}
+                      title="Move up"
                     >
-                      {group.name}
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                        <path fillRule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clipRule="evenodd" />
+                      </svg>
                     </button>
+                    <button
+                      type="button"
+                      className={btnGhost}
+                      disabled={idx === groups.length - 1}
+                      onClick={() => void moveGroup(group.id, 'down')}
+                      title="Move down"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                        <path fillRule="evenodd" d="M10 3a.75.75 0 01.75.75v10.638l3.96-4.158a.75.75 0 111.08 1.04l-5.25 5.5a.75.75 0 01-1.08 0l-5.25-5.5a.75.75 0 111.08-1.04l3.96 4.158V3.75A.75.75 0 0110 3z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+
+                    {/* Clear categories button (only if group has categories) */}
+                    {group.categories.length > 0 && (
+                      <button
+                        type="button"
+                        className="p-1 text-gray-600 hover:text-amber-400 transition-colors"
+                        onClick={() => void deleteGroupCategories(group)}
+                        title="Delete all categories in this group (keep group)"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                          <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                        </svg>
+                      </button>
+                    )}
+
+                    {/* Delete group button */}
+                    <button
+                      type="button"
+                      className="p-1 text-gray-600 hover:text-red-400 transition-colors"
+                      onClick={() => void deleteGroup(group)}
+                      title="Delete group (and all its categories)"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                        <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.519.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 01.78.72l.5 6a.75.75 0 01-1.49.12l-.5-6a.75.75 0 01.71-.84zm2.84 0a.75.75 0 01.71.84l-.5 6a.75.75 0 11-1.49-.12l.5-6a.75.75 0 01.78-.72z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Category list */}
+                  {group.categories.length > 0 && (
+                    <div className="divide-y divide-gray-800/60">
+                      {group.categories.map(cat => (
+                        <div key={cat.id} className="flex items-center gap-2 px-4 py-1.5">
+                          <span className="flex-1 text-xs text-gray-400 truncate">{cat.name}</span>
+                        </div>
+                      ))}
+                    </div>
                   )}
-
-                  {/* Reorder buttons */}
-                  <button
-                    type="button"
-                    className={btnGhost}
-                    disabled={idx === 0}
-                    onClick={() => void moveGroup(group.id, 'up')}
-                    title="Move up"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                      <path fillRule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    className={btnGhost}
-                    disabled={idx === groups.length - 1}
-                    onClick={() => void moveGroup(group.id, 'down')}
-                    title="Move down"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                      <path fillRule="evenodd" d="M10 3a.75.75 0 01.75.75v10.638l3.96-4.158a.75.75 0 111.08 1.04l-5.25 5.5a.75.75 0 01-1.08 0l-5.25-5.5a.75.75 0 111.08-1.04l3.96 4.158V3.75A.75.75 0 0110 3z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-
-                  {/* Delete button */}
-                  <button
-                    type="button"
-                    className="p-1 text-gray-600 hover:text-red-400 transition-colors"
-                    onClick={() => void deleteGroup(group)}
-                    title="Delete group"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                      <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.519.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 01.78.72l.5 6a.75.75 0 01-1.49.12l-.5-6a.75.75 0 01.71-.84zm2.84 0a.75.75 0 01.71.84l-.5 6a.75.75 0 11-1.49-.12l.5-6a.75.75 0 01.78-.72z" clipRule="evenodd" />
-                    </svg>
-                  </button>
+                  {group.categories.length === 0 && (
+                    <div className="px-4 py-2">
+                      <span className="text-xs text-gray-600 italic">No categories</span>
+                    </div>
+                  )}
                 </div>
               ))}
 

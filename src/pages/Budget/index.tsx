@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
-import { get, post, patch, put, delWithBody } from '../../lib/api'
+import { get, post, patch, put, del, delWithBody } from '../../lib/api'
 import type { BudgetData, BudgetCategory, BudgetGroup, SummaryData } from './types'
 import MonthSelector from './MonthSelector'
 import CollapsibleGroup from './CollapsibleGroup'
@@ -369,16 +369,26 @@ export default function Budget() {
   async function handleBulkDelete() {
     const ids = Array.from(selectedIds)
 
+    // Identify groups that will become empty after this bulk delete
+    const emptyGroupIds: number[] = budgetRef.current
+      ? budgetRef.current.groups
+          .filter(g => g.categories.length > 0 && g.categories.every(c => selectedIds.has(c.id)))
+          .map(g => g.id)
+      : []
+    const emptyGroupIdSet = new Set(emptyGroupIds)
+
     // Optimistic update: remove categories from UI immediately
     const prevBudget = budgetRef.current
     setBudget(prev => {
       if (!prev) return prev
       return {
         ...prev,
-        groups: prev.groups.map(g => ({
-          ...g,
-          categories: g.categories.filter(c => !selectedIds.has(c.id)),
-        })).filter(g => g.categories.length > 0 || true),
+        groups: prev.groups
+          .map(g => ({
+            ...g,
+            categories: g.categories.filter(c => !selectedIds.has(c.id)),
+          }))
+          .filter(g => !emptyGroupIdSet.has(g.id)),
       }
     })
     setSelectedIds(new Set())
@@ -386,13 +396,33 @@ export default function Budget() {
 
     try {
       const result = await delWithBody<{ deleted: number }>('/categories/bulk', { ids })
-      showToast({ message: `${result.deleted} ${result.deleted === 1 ? 'category' : 'categories'} deleted`, type: 'success' })
+      // Also delete groups that now have no categories
+      await Promise.all(emptyGroupIds.map(gid => del(`/groups/${gid}`)))
+      const groupsDeleted = emptyGroupIds.length
+      showToast({
+        message: `${result.deleted} ${result.deleted === 1 ? 'category' : 'categories'} deleted${groupsDeleted > 0 ? ` (+ ${groupsDeleted} empty ${groupsDeleted === 1 ? 'group' : 'groups'})` : ''}`,
+        type: 'success',
+      })
       await fetchData(month)
     } catch (err) {
       // Revert optimistic update on failure
       if (prevBudget) setBudget(prevBudget)
       setSelectedIds(new Set(ids))
       showToast({ message: err instanceof Error ? err.message : 'Failed to delete categories', type: 'error' })
+    }
+  }
+
+  async function handleDeleteGroup(groupId: number, groupName: string) {
+    if (!window.confirm(`Delete group "${groupName}"?\n\nThis will also delete all its categories, budgets, and targets.`)) return
+    const prevBudget = budgetRef.current
+    setBudget(prev => prev ? { ...prev, groups: prev.groups.filter(g => g.id !== groupId) } : prev)
+    try {
+      await del(`/groups/${groupId}`)
+      showToast({ message: `Group "${groupName}" deleted`, type: 'success' })
+      await fetchData(month)
+    } catch (err) {
+      if (prevBudget) setBudget(prevBudget)
+      showToast({ message: err instanceof Error ? err.message : 'Failed to delete group', type: 'error' })
     }
   }
 
@@ -566,6 +596,7 @@ export default function Budget() {
               selectedIds={selectedIds}
               onSelect={handleSelect}
               onSelectGroup={handleSelectGroup}
+              onDeleteGroup={handleDeleteGroup}
             />
           ))}
 
