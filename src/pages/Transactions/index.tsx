@@ -780,6 +780,7 @@ export default function Transactions() {
           transaction={editingTx}
           groups={groups}
           payees={payees}
+          accountId={accountId ? Number(accountId) : null}
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditingTx(null) }}
         />

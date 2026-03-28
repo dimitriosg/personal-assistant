@@ -7,6 +7,7 @@ interface Props {
   transaction: Transaction | null   // null = "add new"
   groups: CategoryGroup[]
   payees: string[]
+  accountId?: number | null
   onSave: (data: TransactionPayload) => Promise<void>
   onClose: () => void
 }
@@ -18,6 +19,7 @@ export interface TransactionPayload {
   memo: string
   amount: number
   cleared: boolean
+  account_id: number | null
 }
 
 function todayISO() {
@@ -25,7 +27,7 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export default function TransactionForm({ transaction, groups, payees, onSave, onClose }: Props) {
+export default function TransactionForm({ transaction, groups, payees, accountId, onSave, onClose }: Props) {
   const isEdit = transaction !== null
 
   const [date, setDate] = useState(transaction?.date ?? todayISO())
@@ -80,6 +82,7 @@ export default function TransactionForm({ transaction, groups, payees, onSave, o
         memo: memo.trim(),
         amount: type === 'outflow' ? -amt : amt,
         cleared,
+        account_id: accountId ?? null,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save transaction')
