@@ -24,31 +24,17 @@ function calculateAvailable(categoryId: number, month: string, assigned: number,
 }
 
 function calculateReadyToAssign(month: string): number {
-  const monthNum = parseInt(month.split('-')[1], 10)
-
-  const allAssigned = db.prepare(
-    'SELECT COALESCE(SUM(assigned), 0) AS total FROM monthly_budgets WHERE month <= ?'
-  ).get(month) as { total: number }
-
-  const allTxIncome = db.prepare(
-    'SELECT COALESCE(SUM(amount), 0) AS total FROM transactions WHERE amount > 0 AND category_id IS NULL AND date <= ?'
-  ).get(month + '-31') as { total: number }
-
-  // Only budget account opening balances count toward the budget (not tracking)
+  // Ready to Assign = budget account balances - total assigned THIS month
+  // Only budget account balances count (not tracking)
   const budgetAccountsRow = db.prepare(
     "SELECT COALESCE(SUM(balance), 0) AS total FROM accounts WHERE type = 'budget' AND is_closed = 0"
   ).get() as { total: number }
 
-  const incomeRows = db.prepare('SELECT * FROM income').all() as IncomeRow[]
-  let incomeTableTotal = 0
-  for (let m = 1; m <= monthNum; m++) {
-    for (const i of incomeRows) {
-      if (i.is_recurring) incomeTableTotal += i.amount
-      else if (Number(i.expected_month) === m) incomeTableTotal += i.amount
-    }
-  }
+  const assignedThisMonth = db.prepare(
+    'SELECT COALESCE(SUM(assigned), 0) AS total FROM monthly_budgets WHERE month = ?'
+  ).get(month) as { total: number }
 
-  return +(budgetAccountsRow.total + allTxIncome.total + incomeTableTotal - allAssigned.total).toFixed(2)
+  return +(budgetAccountsRow.total - assignedThisMonth.total).toFixed(2)
 }
 
 // ── Build formatted budget context string ─────────────────────────────────────

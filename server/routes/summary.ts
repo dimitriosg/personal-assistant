@@ -98,35 +98,13 @@ router.get('/:month', (req, res) => {
     ? allMonthsSpent.reduce((s, m) => s + Math.abs(m.total), 0) / allMonthsSpent.length
     : 0
 
-  // ── Ready to Assign (available balance)
-  // Budget account opening balances + all income (table) up to this month
-  // + all inflow transactions - all assigned
+  // ── Ready to Assign = budget account balances - total assigned THIS month
   // Only budget accounts (not tracking) count toward the budget
   const budgetAccountsRow = db.prepare(
     "SELECT COALESCE(SUM(balance), 0) AS total FROM accounts WHERE type = 'budget' AND is_closed = 0"
   ).get() as { total: number }
 
-  const incomeTableTotal = (() => {
-    let total = 0
-    for (let m = 1; m <= monthNum; m++) {
-      for (const i of allIncome) {
-        if (i.is_recurring) total += i.amount
-        else if (i.expected_month === m) total += i.amount
-      }
-    }
-    return total
-  })()
-
-  const allInflowRow = db.prepare(`
-    SELECT COALESCE(SUM(amount), 0) AS total
-    FROM transactions WHERE amount > 0 AND category_id IS NULL AND date <= ?
-  `).get(month + '-31') as { total: number }
-
-  const allAssignedRow = db.prepare(
-    'SELECT COALESCE(SUM(assigned), 0) AS total FROM monthly_budgets WHERE month <= ?'
-  ).get(month) as { total: number }
-
-  const readyToAssign = +(budgetAccountsRow.total + allInflowRow.total + incomeTableTotal - allAssignedRow.total).toFixed(2)
+  const readyToAssign = +(budgetAccountsRow.total - assignedThisMonth).toFixed(2)
 
   res.json({
     month,

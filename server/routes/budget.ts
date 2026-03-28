@@ -166,38 +166,17 @@ router.get('/:month', (req, res) => {
   const totalIncome = incomeRow.total + incomeFromTable.total
   const totalAssigned = budgets.reduce((s, b) => s + b.assigned, 0)
 
-  // Ready to Assign = budget account balances + total income - total assigned
+  // Ready to Assign = budget account balances - total assigned THIS month
   // Only budget accounts (not tracking) count toward the budget
   const budgetAccountsRow = db.prepare(
     "SELECT COALESCE(SUM(balance), 0) AS total FROM accounts WHERE type = 'budget' AND is_closed = 0"
   ).get() as { total: number }
 
-  const allAssignedRow = db.prepare(`
-    SELECT COALESCE(SUM(assigned), 0) AS total FROM monthly_budgets WHERE month <= ?
-  `).get(month) as { total: number }
+  const assignedThisMonthRow = db.prepare(
+    'SELECT COALESCE(SUM(assigned), 0) AS total FROM monthly_budgets WHERE month = ?'
+  ).get(month) as { total: number }
 
-  // All income up to this month
-  const allIncomeRow = db.prepare(`
-    SELECT COALESCE(SUM(amount), 0) AS total
-    FROM transactions WHERE amount > 0 AND category_id IS NULL AND date <= ?
-  `).get(month + '-31') as { total: number }
-
-  // Also consider income table for all months up to current
-  const incomeTableTotal = (() => {
-    const rows = db.prepare('SELECT * FROM income').all() as Array<{
-      amount: number; is_recurring: number; expected_month: number | null
-    }>
-    let total = 0
-    for (let m = 1; m <= monthNum; m++) {
-      for (const i of rows) {
-        if (i.is_recurring) total += i.amount
-        else if (i.expected_month === m) total += i.amount
-      }
-    }
-    return total
-  })()
-
-  const readyToAssign = +(budgetAccountsRow.total + allIncomeRow.total + incomeTableTotal - allAssignedRow.total).toFixed(2)
+  const readyToAssign = +(budgetAccountsRow.total - assignedThisMonthRow.total).toFixed(2)
 
   // Build response
   const groupsData = groups.map(g => {
