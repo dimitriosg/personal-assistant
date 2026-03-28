@@ -129,6 +129,16 @@ export default function Budget() {
     fetchMoves(month)
   }, [month, fetchData, fetchMoves])
 
+  // Re-fetch silently when accounts are mutated from any page (e.g. Transactions sidebar)
+  // so that readyToAssign reflects the latest account balances without a full reload.
+  useEffect(() => {
+    function onAccountsChanged() {
+      silentRefetch(month)
+    }
+    window.addEventListener('accountsChanged', onAccountsChanged)
+    return () => window.removeEventListener('accountsChanged', onAccountsChanged)
+  }, [month, silentRefetch])
+
   function handleMonthChange(m: string) {
     setMonth(m)
     setUndoneStack([])

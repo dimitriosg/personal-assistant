@@ -45,7 +45,7 @@ function tabClass({ isActive }: { isActive: boolean }) {
 }
 
 // Pages that manage their own layout (no max-width container / padding)
-const FULL_BLEED_PAGES = ['/', '/assistant']
+const FULL_BLEED_PAGES = ['/', '/assistant', '/transactions']
 
 export default function Layout() {
   const location = useLocation()
